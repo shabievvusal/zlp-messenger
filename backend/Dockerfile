@@ -4,24 +4,23 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-# Копируем только go.mod сначала (go.sum сгенерируется сам)
 COPY go.mod ./
-COPY . .
+# Скачиваем зависимости отдельным слоем (кэшируется)
+RUN go mod download || true
 
-# go mod tidy скачает зависимости и создаст go.sum
+COPY . .
+# tidy + build
 RUN go mod tidy && \
     CGO_ENABLED=0 GOOS=linux go build -o /server ./cmd/server/main.go
 
-# ── Runtime image ──────────────────────────────────────────────
+# ── Runtime ────────────────────────────────────────────────────
 FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
-
 COPY --from=builder /server .
 COPY migrations/ ./migrations/
 
 EXPOSE 8080
-
 CMD ["./server"]
