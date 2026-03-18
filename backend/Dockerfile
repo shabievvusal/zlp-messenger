@@ -2,14 +2,15 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
 RUN apk add --no-cache git
 
-COPY go.mod go.sum ./
-RUN go mod download
-
+# Копируем только go.mod сначала (go.sum сгенерируется сам)
+COPY go.mod ./
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /server ./cmd/server/main.go
+
+# go mod tidy скачает зависимости и создаст go.sum
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -o /server ./cmd/server/main.go
 
 # ── Runtime image ──────────────────────────────────────────────
 FROM alpine:3.19
