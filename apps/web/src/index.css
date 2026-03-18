@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    @apply bg-white dark:bg-surface-dark text-gray-900 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  .bubble-out {
+    @apply bg-bubble-out dark:bg-bubble-out-dark rounded-[18px] rounded-br-[4px] px-3 py-2 max-w-[70%] shadow-sm;
+  }
+  .bubble-in {
+    @apply bg-bubble-in dark:bg-bubble-in-dark rounded-[18px] rounded-bl-[4px] px-3 py-2 max-w-[70%] shadow-sm;
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+}

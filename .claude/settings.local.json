@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/apps/web/src\")",
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/cmd/server\")",
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/auth\")",
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/chat\")",
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/ws\")"
+    ]
+  }
+}

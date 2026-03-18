@@ -1,0 +1,27 @@
+# Go
+backend/bin/
+backend/vendor/
+*.exe
+
+# Node
+node_modules/
+apps/web/dist/
+apps/web/.env.local
+apps/mobile/.env.local
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+infra/data/
