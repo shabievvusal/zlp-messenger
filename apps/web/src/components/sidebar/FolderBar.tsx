@@ -3,9 +3,10 @@ import { useChatStore } from '@/store/chat'
 
 interface Props {
   onEditFolder: (folder: ChatFolder | null) => void
+  onOpenDrawer: () => void
 }
 
-export function FolderBar({ onEditFolder }: Props) {
+export function FolderBar({ onEditFolder, onOpenDrawer }: Props) {
   const { folders, activeFolderId, setActiveFolder } = useFolderStore()
   const chats = useChatStore((s) => s.chats)
 
@@ -18,10 +19,25 @@ export function FolderBar({ onEditFolder }: Props) {
 
   return (
     <div
-      className="w-[62px] flex-shrink-0 flex flex-col items-center pt-2 pb-3 gap-0.5
+      className="w-[62px] flex-shrink-0 flex flex-col items-center pt-1 pb-3 gap-0.5
         border-r border-black/8 dark:border-white/8
         bg-sidebar dark:bg-sidebar-dark overflow-y-auto scrollbar-hide"
     >
+      {/* Hamburger menu — at very top */}
+      <button
+        onClick={onOpenDrawer}
+        title="Меню"
+        className="w-10 h-10 flex items-center justify-center rounded-xl mb-1
+          text-gray-500 dark:text-gray-400
+          hover:bg-black/8 dark:hover:bg-white/10
+          hover:text-gray-800 dark:hover:text-gray-200
+          transition-colors active:scale-90"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
       {/* All chats */}
       <FolderTab
         icon="💬"
