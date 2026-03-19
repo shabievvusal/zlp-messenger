@@ -53,6 +53,7 @@ export function useWebSocket() {
   const setOnline = useChatStore((s) => s.setOnline)
   const incrementUnread = useChatStore((s) => s.incrementUnread)
   const incrementMention = useChatStore((s) => s.incrementMention)
+  const markMessageRead = useChatStore((s) => s.markMessageRead)
   const activeChatId = useChatStore((s) => s.activeChatId)
 
   const setIncoming = useCallStore((s) => s.setIncoming)
@@ -171,9 +172,14 @@ export function useWebSocket() {
         incrementMention(p.chat_id)
         break
       }
+      case 'message_read': {
+        const p = event.payload as { message_id: string }
+        markMessageRead(p.message_id)
+        break
+      }
     }
   }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline,
-      incrementUnread, incrementMention, setIncoming, updateActive, clearAll])
+      incrementUnread, incrementMention, markMessageRead, setIncoming, updateActive, clearAll])
 
   const connect = useCallback(() => {
     if (!isAuthenticated || !accessToken) return

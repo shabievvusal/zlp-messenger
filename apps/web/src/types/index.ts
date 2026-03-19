@@ -48,6 +48,7 @@ export interface Message {
   views: number
   created_at: string
   edited_at?: string
+  is_read: boolean
   sender?: User
   attachments?: Attachment[]
   reactions?: Reaction[]

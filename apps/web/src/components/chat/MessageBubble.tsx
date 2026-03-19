@@ -353,7 +353,9 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
               {format(new Date(msg.created_at), 'HH:mm')}
             </span>
             {isOwn && (
-              <span className="text-[10px] text-primary-400">✓✓</span>
+              msg.is_read
+                ? <span className="text-[10px] text-primary-400 leading-none">✓✓</span>
+                : <span className="text-[10px] text-gray-400 leading-none">✓</span>
             )}
           </div>
         </div>
@@ -389,30 +391,51 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
         )}
       </div>
 
-      {/* Context menu */}
+      {/* Context menu — Telegram style */}
       {menu && (
         <div
           ref={menuRef}
-          className="ctx-menu"
-          style={{ top: Math.min(menu.y, window.innerHeight - 340), left: Math.min(menu.x, window.innerWidth - 220) }}
+          className="fixed z-[9999] w-52 rounded-2xl overflow-hidden
+            bg-white dark:bg-[#2c2c2e] shadow-2xl
+            border border-black/8 dark:border-white/8
+            animate-scaleIn origin-top-left"
+          style={{ top: Math.min(menu.y, window.innerHeight - 380), left: Math.min(menu.x, window.innerWidth - 220) }}
         >
-          {/* Emoji row */}
-          <div className="flex gap-1 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+          {/* Emoji reactions row */}
+          <div className="flex items-center gap-0.5 px-2 py-2 border-b border-black/8 dark:border-white/8">
             {QUICK_REACTIONS.map((e) => (
               <button key={e} onClick={() => handleReact(e)}
-                className="text-xl hover:scale-125 transition-transform leading-none">
+                className="flex-1 text-lg hover:scale-125 transition-transform leading-none py-1 rounded-lg
+                  hover:bg-black/5 dark:hover:bg-white/5">
                 {e}
               </button>
             ))}
           </div>
 
-          <MenuItem icon="↩" label="Ответить" onClick={() => { setReplyTo(msg); setMenu(null) }} />
-          <MenuItem icon="⤵" label="Переслать" onClick={handleForward} />
-          <MenuItem icon="☑️" label="Выбрать" onClick={handleSelect} />
-          {msg.text && <MenuItem icon="📋" label="Копировать текст" onClick={handleCopyText} />}
-          {isOwn && <MenuItem icon="✏️" label="Редактировать" onClick={() => { setEditMsg(msg); setMenu(null) }} />}
-          <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
-          {isOwn && <MenuItem icon="🗑" label="Удалить" onClick={handleDelete} danger />}
+          <CtxItem icon={<IcReply />}   label="Ответить"       onClick={() => { setReplyTo(msg); setMenu(null) }} />
+          {isOwn && <CtxItem icon={<IcEdit />} label="Изменить" onClick={() => { setEditMsg(msg); setMenu(null) }} />}
+          <CtxItem icon={<IcPin />}     label="Закрепить"      onClick={() => setMenu(null)} />
+          {msg.text && <CtxItem icon={<IcCopy />} label="Копировать текст" onClick={handleCopyText} />}
+          <CtxItem icon={<IcForward />} label="Переслать"      onClick={handleForward} />
+          <CtxItem icon={<IcSelect />}  label="Выделить"       onClick={handleSelect} />
+          {isOwn && (
+            <>
+              <div className="mx-3 my-1 border-t border-black/8 dark:border-white/8" />
+              <CtxItem icon={<IcDelete />} label="Удалить" onClick={handleDelete} danger />
+            </>
+          )}
+
+          {/* Timestamp footer */}
+          <div className="flex items-center gap-1 px-4 py-2 border-t border-black/8 dark:border-white/8">
+            {isOwn && (
+              msg.is_read
+                ? <span className="text-[11px] text-primary-400">✓✓</span>
+                : <span className="text-[11px] text-gray-400">✓</span>
+            )}
+            <span className="text-[11px] text-gray-400">
+              {format(new Date(msg.created_at), 'HH:mm')}
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -434,23 +457,61 @@ function QuickBtn({ title, onClick, children }: {
   )
 }
 
-function MenuItem({ icon, label, onClick, danger }: {
-  icon: string; label: string; onClick: () => void; danger?: boolean
+function CtxItem({ icon, label, onClick, danger }: {
+  icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       className={clsx(
-        'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition',
+        'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
         danger
           ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
-          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          : 'text-gray-800 dark:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5'
       )}
     >
-      <span className="text-base leading-none">{icon}</span>
+      <span className={clsx('flex-shrink-0', danger ? 'text-red-500' : 'text-gray-500 dark:text-gray-400')}>
+        {icon}
+      </span>
       {label}
     </button>
   )
+}
+
+function IcReply() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+  </svg>
+}
+function IcEdit() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+}
+function IcPin() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+  </svg>
+}
+function IcCopy() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+}
+function IcForward() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+}
+function IcSelect() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+}
+function IcDelete() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
 }
 
 function formatSize(bytes: number) {

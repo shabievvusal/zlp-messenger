@@ -231,6 +231,10 @@ func (s *Service) SendMessage(ctx context.Context, senderID uuid.UUID, in SendMe
 	return msg, nil
 }
 
+func (s *Service) GetMessageByID(ctx context.Context, msgID uuid.UUID) (*models.Message, error) {
+	return s.repo.GetMessageByID(ctx, msgID)
+}
+
 func (s *Service) GetMessages(ctx context.Context, userID, chatID uuid.UUID, limit, offset int) ([]models.Message, error) {
 	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
 		return nil, ErrNotMember
@@ -240,7 +244,7 @@ func (s *Service) GetMessages(ctx context.Context, userID, chatID uuid.UUID, lim
 		limit = 50
 	}
 
-	return s.repo.GetMessages(ctx, chatID, limit, offset)
+	return s.repo.GetMessages(ctx, chatID, limit, offset, userID)
 }
 
 func (s *Service) EditMessage(ctx context.Context, userID, msgID uuid.UUID, text string) (*models.Message, error) {

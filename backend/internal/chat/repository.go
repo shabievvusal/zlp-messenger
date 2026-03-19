@@ -216,7 +216,7 @@ func (r *Repository) GetMessageByID(ctx context.Context, id uuid.UUID) (*models.
 	return &msg, err
 }
 
-func (r *Repository) GetMessages(ctx context.Context, chatID uuid.UUID, limit, offset int) ([]models.Message, error) {
+func (r *Repository) GetMessages(ctx context.Context, chatID uuid.UUID, limit, offset int, viewerID uuid.UUID) ([]models.Message, error) {
 	var msgs []models.Message
 	err := r.db.SelectContext(ctx, &msgs, `
 		SELECT * FROM messages
@@ -228,7 +228,43 @@ func (r *Repository) GetMessages(ctx context.Context, chatID uuid.UUID, limit, o
 	}
 	_ = r.populateAttachments(ctx, msgs)
 	_ = r.populateSenders(ctx, msgs)
+	_ = r.populateReadStatus(ctx, msgs, viewerID)
 	return msgs, nil
+}
+
+// populateReadStatus marks IsRead=true on messages sent by viewerID that have been read by someone else.
+func (r *Repository) populateReadStatus(ctx context.Context, msgs []models.Message, viewerID uuid.UUID) error {
+	// Collect own message IDs
+	var ownIDs []interface{}
+	var placeholders []string
+	for _, m := range msgs {
+		if m.SenderID != nil && *m.SenderID == viewerID {
+			ownIDs = append(ownIDs, m.ID)
+			placeholders = append(placeholders, fmt.Sprintf("$%d", len(ownIDs)))
+		}
+	}
+	if len(ownIDs) == 0 {
+		return nil
+	}
+	query := fmt.Sprintf(
+		`SELECT DISTINCT message_id FROM message_reads WHERE message_id IN (%s) AND user_id != $%d`,
+		strings.Join(placeholders, ","), len(ownIDs)+1,
+	)
+	ownIDs = append(ownIDs, viewerID)
+	var readIDs []uuid.UUID
+	if err := r.db.SelectContext(ctx, &readIDs, query, ownIDs...); err != nil {
+		return err
+	}
+	readSet := make(map[uuid.UUID]struct{}, len(readIDs))
+	for _, id := range readIDs {
+		readSet[id] = struct{}{}
+	}
+	for i := range msgs {
+		if _, ok := readSet[msgs[i].ID]; ok {
+			msgs[i].IsRead = true
+		}
+	}
+	return nil
 }
 
 // populateSenders fetches sender info for a slice of messages in one query.

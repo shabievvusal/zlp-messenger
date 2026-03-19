@@ -29,6 +29,7 @@ interface ChatState {
   incrementMention: (chatId: string) => void
   clearMentions: (chatId: string) => void
   setChatMuted: (chatId: string, until: string | null) => void
+  markMessageRead: (msgId: string) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -149,4 +150,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       mutedChats: { ...state.mutedChats, [chatId]: until },
     })),
+
+  markMessageRead: (msgId) =>
+    set((state) => {
+      const next: Record<string, Message[]> = {}
+      for (const chatId of Object.keys(state.messages)) {
+        next[chatId] = state.messages[chatId].map((m) =>
+          m.id === msgId ? { ...m, is_read: true } : m
+        )
+      }
+      return { messages: next }
+    }),
 }))

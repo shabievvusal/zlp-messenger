@@ -161,7 +161,12 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		if msgID == uuid.Nil {
 			return
 		}
-		_ = h.chatService.MarkRead(context.Background(), c.UserID, msgID)
+		ctx := context.Background()
+		_ = h.chatService.MarkRead(ctx, c.UserID, msgID)
+		// Notify the original sender that their message has been read
+		if msg, err := h.chatService.GetMessageByID(ctx, msgID); err == nil && msg.SenderID != nil && *msg.SenderID != c.UserID {
+			h.NotifyUser(*msg.SenderID, EventMessageRead, map[string]any{"message_id": msgID})
+		}
 
 	// ── CALLS ──────────────────────────────────────────────────
 
