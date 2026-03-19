@@ -36,7 +36,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   const updateMessage = useChatStore((s) => s.updateMessage)
   const currentUser = useAuthStore((s) => s.user)
   const {
-    setReplyTo, setEditMsg, openMedia, setForwardMsg,
+    setReplyTo, setEditMsg, openMedia, openGallery, setForwardMsg,
     selectedMsgIds, isSelecting, enterSelectMode, toggleSelect,
   } = useChatCtx()
 
@@ -197,50 +197,100 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           )}
 
           {/* Attachments */}
-          {(msg.attachments ?? []).map((a) => (
-            <div key={a.id} className="mt-1">
-              {a.type === 'photo' && (
-                <img
-                  src={a.url}
-                  alt=""
-                  className="max-w-full rounded-xl max-h-80 object-cover cursor-zoom-in"
-                  onClick={() => openMedia(a.url, 'photo')}
-                />
-              )}
-              {a.type === 'gif' && (
-                <img src={a.url} alt="GIF" className="max-w-full rounded-xl max-h-60 object-cover cursor-zoom-in"
-                  onClick={() => openMedia(a.url, 'photo')} />
-              )}
-              {a.type === 'video' && (
-                <video
-                  src={a.url}
-                  className="max-w-full rounded-xl max-h-80 cursor-pointer"
-                  onClick={() => openMedia(a.url, 'video')}
-                />
-              )}
-              {a.type === 'voice' && (
-                <VoiceMessage attachment={a} isOwn={isOwn} />
-              )}
-              {a.type === 'audio' && (
-                <audio src={a.url} controls className="w-full mt-1" />
-              )}
-              {a.type === 'document' && (
-                <a href={a.url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2 p-2 rounded-lg bg-black/5 dark:bg-white/5
-                    hover:bg-black/10 transition text-sm">
-                  <span className="text-2xl">📄</span>
-                  <div className="min-w-0">
-                    <p className="font-medium truncate text-gray-900 dark:text-gray-100">
-                      {a.file_name ?? 'Файл'}
-                    </p>
-                    {a.file_size && (
-                      <p className="text-xs text-gray-500">{formatSize(a.file_size)}</p>
-                    )}
+          {(msg.attachments ?? []).length > 0 && (() => {
+            const photos = msg.attachments?.filter(a => a.type === 'photo' || a.type === 'gif') ?? []
+            const videos = msg.attachments?.filter(a => a.type === 'video') ?? []
+            const otherMedia = msg.attachments?.filter(a => a.type === 'voice' || a.type === 'audio' || a.type === 'document') ?? []
+
+            const handlePhotoClick = (index: number) => {
+              const galleryItems = photos.map(p => ({
+                id: p.id,
+                url: p.url,
+                type: p.type as 'photo' | 'video' | 'gif',
+                thumbnail: p.thumbnail,
+              }))
+              openGallery(galleryItems, index)
+            }
+
+            return (
+              <>
+                {/* Photo gallery */}
+                {photos.length > 0 && (
+                  <div className="mt-2 grid gap-1" style={{
+                    gridTemplateColumns: photos.length === 1 ? '1fr' : photos.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                    maxWidth: photos.length === 1 ? '100%' : '320px',
+                  }}>
+                    {photos.map((a, idx) => (
+                      <button
+                        key={a.id}
+                        onClick={() => handlePhotoClick(idx)}
+                        className="relative rounded-lg overflow-hidden group cursor-zoom-in"
+                        style={{ aspectRatio: '1' }}
+                      >
+                        <img
+                          src={a.thumbnail || a.url}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                        {photos.length > 1 && idx === photos.length - 1 && photos.length > 4 && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <span className="text-white text-xl font-semibold">+{photos.length - 4}</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                </a>
-              )}
-            </div>
-          ))}
+                )}
+
+                {/* Videos */}
+                {videos.map((a) => (
+                  <video
+                    key={a.id}
+                    src={a.url}
+                    className="max-w-full rounded-xl max-h-80 cursor-pointer mt-2"
+                    onClick={() => openMedia(a.url, 'video')}
+                  />
+                ))}
+
+                {/* Voice & Audio */}
+                {otherMedia
+                  .filter(a => a.type === 'voice' || a.type === 'audio')
+                  .map((a) => (
+                    <div key={a.id} className="mt-2">
+                      {a.type === 'voice' ? (
+                        <VoiceMessage attachment={a} isOwn={isOwn} />
+                      ) : (
+                        <audio src={a.url} controls className="w-full" />
+                      )}
+                    </div>
+                  ))}
+
+                {/* Documents */}
+                {otherMedia
+                  .filter(a => a.type === 'document')
+                  .map((a) => (
+                    <a
+                      key={a.id}
+                      href={a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 p-2 rounded-lg bg-black/5 dark:bg-white/5
+                        hover:bg-black/10 transition text-sm mt-2"
+                    >
+                      <span className="text-2xl">📄</span>
+                      <div className="min-w-0">
+                        <p className="font-medium truncate text-gray-900 dark:text-gray-100">
+                          {a.file_name ?? 'Файл'}
+                        </p>
+                        {a.file_size && (
+                          <p className="text-xs text-gray-500">{formatSize(a.file_size)}</p>
+                        )}
+                      </div>
+                    </a>
+                  ))}
+              </>
+            )
+          })()}
 
           {/* Meta row */}
           <div className="flex items-center gap-1 mt-1 select-none justify-end">

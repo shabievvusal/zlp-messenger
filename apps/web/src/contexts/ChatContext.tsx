@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback } from 'react'
-import type { Message } from '@/types'
+import type { Message, MediaGalleryItem } from '@/types'
 
 interface ChatContextValue {
   replyTo: Message | null
@@ -11,6 +11,13 @@ interface ChatContextValue {
   mediaViewer: { url: string; type: 'photo' | 'video' } | null
   openMedia: (url: string, type: 'photo' | 'video') => void
   closeMedia: () => void
+  // Gallery view (multiple photos)
+  mediaGallery: MediaGalleryItem[] | null
+  galleryIndex: number
+  openGallery: (items: MediaGalleryItem[], startIndex: number) => void
+  closeGallery: () => void
+  nextGalleryImage: () => void
+  prevGalleryImage: () => void
   clearInput: () => void
   onClearInput: (fn: () => void) => void
   // Message selection (like Telegram checkboxes)
@@ -31,6 +38,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [editMsg, setEditMsgState] = useState<Message | null>(null)
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
   const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'photo' | 'video' } | null>(null)
+  const [mediaGallery, setMediaGallery] = useState<MediaGalleryItem[] | null>(null)
+  const [galleryIndex, setGalleryIndex] = useState(0)
   const [clearFn, setClearFn] = useState<(() => void) | null>(null)
   const [selectedMsgIds, setSelectedMsgIds] = useState<string[]>([])
   const [highlightMsgId, setHighlightMsgId] = useState<string | null>(null)
@@ -50,6 +59,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const closeMedia = useCallback(() => setMediaViewer(null), [])
+
+  const openGallery = useCallback((items: MediaGalleryItem[], startIndex: number) => {
+    setMediaGallery(items)
+    setGalleryIndex(startIndex)
+  }, [])
+
+  const closeGallery = useCallback(() => {
+    setMediaGallery(null)
+    setGalleryIndex(0)
+  }, [])
+
+  const nextGalleryImage = useCallback(() => {
+    setGalleryIndex((prev) => (mediaGallery ? (prev + 1) % mediaGallery.length : 0))
+  }, [mediaGallery])
+
+  const prevGalleryImage = useCallback(() => {
+    setGalleryIndex((prev) => (mediaGallery ? (prev - 1 + mediaGallery.length) % mediaGallery.length : 0))
+  }, [mediaGallery])
 
   const clearInput = useCallback(() => clearFn?.(), [clearFn])
   const onClearInput = useCallback((fn: () => void) => setClearFn(() => fn), [])
@@ -74,6 +101,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       editMsg, setEditMsg,
       forwardMsg, setForwardMsg,
       mediaViewer, openMedia, closeMedia,
+      mediaGallery, galleryIndex, openGallery, closeGallery, nextGalleryImage, prevGalleryImage,
       clearInput, onClearInput,
       selectedMsgIds, isSelecting,
       enterSelectMode, toggleSelect, clearSelection,
@@ -82,6 +110,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ChatContext.Provider>
   )
+}
 }
 
 export const useChatCtx = () => useContext(ChatContext)

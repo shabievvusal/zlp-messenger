@@ -123,6 +123,7 @@ func main() {
 
 	// Media
 	protected.Post("/media/upload", mediaHandler.Upload)
+	protected.Post("/media/upload-multiple", mediaHandler.UploadMultiple)
 	protected.Post("/media/avatar", mediaHandler.UploadAvatar)
 
 	// WebSocket

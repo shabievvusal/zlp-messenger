@@ -14,6 +14,14 @@ interface Props {
   chatId: string
 }
 
+interface FileToUpload {
+  id: string
+  file: File
+  preview?: string
+  progress: number
+  error?: string
+}
+
 export function MessageInput({ chatId }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -21,6 +29,7 @@ export function MessageInput({ chatId }: Props) {
   const [isDragging, setIsDragging] = useState(false)
   const [recording, setRecording] = useState(false)
   const [recordSeconds, setRecordSeconds] = useState(0)
+  const [filesToUpload, setFilesToUpload] = useState<FileToUpload[]>([])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -66,30 +75,94 @@ export function MessageInput({ chatId }: Props) {
 
   const handleSend = async () => {
     const trimmed = text.trim()
-    if (!trimmed || sending) return
-    setSending(true)
-    setText('')
-    setShowEmoji(false)
-
-    try {
-      if (editMsg) {
+    
+    // If editing, only text mode
+    if (editMsg) {
+      if (!trimmed) return
+      setSending(true)
+      try {
         await chatApi.editMessage(editMsg.id, trimmed)
         updateMessage({ ...editMsg, text: trimmed, is_edited: true })
         setEditMsg(null)
-      } else {
-        const currentReplyTo = replyTo
+        setText('')
+        setShowEmoji(false)
+      } catch {
+        toast.error('Не удалось отредактировать сообщение')
+      } finally {
+        setSending(false)
+        textareaRef.current?.focus()
+      }
+      return
+    }
+
+    // Normal send: with or without files
+    if (!trimmed && filesToUpload.length === 0) return
+    setSending(true)
+    
+    try {
+      const currentReplyTo = replyTo
+
+      if (filesToUpload.length > 0) {
+        // Group files into one message with attachments
+        const formData = new FormData()
+        formData.append('chat_id', chatId)
+        if (trimmed) formData.append('text', trimmed)
+        if (currentReplyTo) formData.append('reply_to_id', currentReplyTo.id)
+        
+        // Add all files
+        filesToUpload.forEach((f) => {
+          formData.append('files', f.file)
+        })
+
+        const token = useAuthStore.getState().accessToken
+        const res = await fetch('/api/media/upload-multiple', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        })
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error ?? 'Upload failed')
+        }
+
+        const data = await res.json()
+        const msg = data.message ?? data
+        
+        if (msg?.id) {
+          const fullMsg = {
+            ...msg,
+            attachments: data.attachments ?? [],
+            sender: user ?? undefined,
+            reply_to: currentReplyTo ?? undefined,
+          }
+          addMessage(fullMsg)
+          updateMessage(fullMsg)
+          setFilesToUpload([])
+          setText('')
+          setReplyTo(null)
+        }
+      } else if (trimmed) {
+        // Text-only message
         const { data } = await chatApi.sendMessage(chatId, {
           text: trimmed,
           type: 'text',
           reply_to_id: currentReplyTo?.id,
         })
-        // Attach reply_to locally (server may not embed it in response)
         addMessage({ ...data, sender: user ?? undefined, reply_to: currentReplyTo ?? undefined })
+        setText('')
         setReplyTo(null)
       }
-    } catch {
-      toast.error('Не удалось отправить сообщение')
-      setText(trimmed)
+      
+      setShowEmoji(false)
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Ошибка отправки')
+      // Restore text on error
+      if (!trimmed && filesToUpload.length > 0) {
+        // Files stay in queue
+      } else {
+        setText(text)
+      }
     } finally {
       setSending(false)
       textareaRef.current?.focus()
@@ -113,51 +186,38 @@ export function MessageInput({ chatId }: Props) {
     textareaRef.current?.focus()
   }
 
-  // File upload
-  const uploadFile = async (file: File) => {
-    const currentReplyTo = replyTo
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('chat_id', chatId)
-    if (currentReplyTo) formData.append('reply_to_id', currentReplyTo.id)
+  // Add files to upload queue with previews
+  const addFilesToQueue = (files: File[]) => {
+    const newFiles: FileToUpload[] = files.map((file) => {
+      const id = `${Date.now()}-${Math.random()}`
+      let preview: string | undefined
 
-    try {
-      const token = useAuthStore.getState().accessToken
-      const res = await fetch('/api/media/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(errData.error ?? 'Upload failed')
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        preview = URL.createObjectURL(file)
+      } else if (file.type.startsWith('video/')) {
+        // For video, we could extract thumbnail later
       }
-      const data = await res.json()
-      // Backend returns { message: {...}, attachment: {...} } when chat_id is provided
-      const msg = data.message ?? data
-      const attachment = data.attachment
-      if (msg?.id) {
-        const attachments = attachment
-          ? [attachment]
-          : (msg.attachments?.length ? msg.attachments : [])
-        const fullMsg = {
-          ...msg,
-          attachments,
-          sender: user ?? undefined,
-          reply_to: currentReplyTo ?? undefined,
-        }
-        addMessage(fullMsg)
-        updateMessage(fullMsg)
-        setReplyTo(null)
-      }
-    } catch (err: unknown) {
-      toast.error((err as Error).message || 'Ошибка загрузки файла')
-    }
+
+      return { id, file, preview, progress: 0 }
+    })
+
+    setFilesToUpload((prev) => [...prev, ...newFiles])
+  }
+
+  const removeFileFromQueue = (id: string) => {
+    setFilesToUpload((prev) => {
+      const file = prev.find((f) => f.id === id)
+      if (file?.preview) URL.revokeObjectURL(file.preview)
+      return prev.filter((f) => f.id !== id)
+    })
   }
 
   const handleFileInput = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
-    files.forEach(uploadFile)
+    if (files.length > 0) {
+      addFilesToQueue(files)
+    }
     e.target.value = ''
   }
 
@@ -167,7 +227,10 @@ export function MessageInput({ chatId }: Props) {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    Array.from(e.dataTransfer.files).forEach(uploadFile)
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      addFilesToQueue(files)
+    }
   }
 
   // Voice recording
@@ -231,6 +294,35 @@ export function MessageInput({ chatId }: Props) {
       )}
 
       <ReplyBar />
+
+      {/* File preview grid */}
+      {filesToUpload.length > 0 && (
+        <div className="px-3 pt-3 pb-2 bg-white/50 dark:bg-gray-800/50 border-b border-black/8 dark:border-white/8">
+          <p className="text-xs text-gray-500 mb-2">
+            {filesToUpload.length} файл{filesToUpload.length % 10 === 1 && filesToUpload.length !== 11 ? '' : 'ов'}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {filesToUpload.map((f) => (
+              <div key={f.id} className="relative group rounded-lg overflow-hidden bg-black/10">
+                {f.preview ? (
+                  <img src={f.preview} alt="" className="w-full h-24 object-cover" />
+                ) : (
+                  <div className="w-full h-24 flex items-center justify-center bg-black/5">
+                    <span className="text-2xl">📄</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => removeFileFromQueue(f.id)}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white
+                    flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-end gap-2 px-3 py-3
         bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm
@@ -300,7 +392,7 @@ export function MessageInput({ chatId }: Props) {
         )}
 
         {/* Send / Voice */}
-        {text.trim() ? (
+        {text.trim() || filesToUpload.length > 0 ? (
           <button onClick={handleSend} disabled={sending}
             className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600 active:scale-90
               flex items-center justify-center transition-all disabled:opacity-50 flex-shrink-0

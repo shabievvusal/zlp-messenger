@@ -56,8 +56,9 @@ func (s *Service) Upload(ctx context.Context, file *multipart.FileHeader, userID
 		return nil, fmt.Errorf("upload to minio: %w", err)
 	}
 
-	// Use a proxy-relative URL so the browser fetches through nginx (/media/ → minio:9000)
-	url := fmt.Sprintf("/media/%s/%s", s.bucket, objectName)
+	// Route through backend (/api/media/file/*) — backend has MinIO credentials,
+	// so no bucket policy or nginx→MinIO proxy is needed.
+	url := fmt.Sprintf("/api/media/file/%s", objectName)
 
 	return &UploadResult{
 		URL:      url,
@@ -85,7 +86,25 @@ func (s *Service) UploadAvatar(ctx context.Context, file *multipart.FileHeader, 
 		return "", err
 	}
 
-	return fmt.Sprintf("/media/%s/%s", s.bucket, objectName), nil
+	return fmt.Sprintf("/api/media/file/%s", objectName), nil
+}
+
+// GetObject fetches a raw object from MinIO for streaming to the client.
+func (s *Service) GetObject(ctx context.Context, objectPath string, rangeStart, rangeEnd int64) (interface{ Read([]byte) (int, error); Close() error }, *minio.ObjectInfo, error) {
+	opts := minio.GetObjectOptions{}
+	if rangeEnd > 0 {
+		_ = opts.SetRange(rangeStart, rangeEnd)
+	}
+	obj, err := s.client.GetObject(ctx, s.bucket, objectPath, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+	stat, err := obj.Stat()
+	if err != nil {
+		obj.Close()
+		return nil, nil, err
+	}
+	return obj, &stat, nil
 }
 
 func detectType(mimeType, filename string) models.AttachmentType {

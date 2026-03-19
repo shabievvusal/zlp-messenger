@@ -88,6 +88,99 @@ func (h *Handler) Upload(c *fiber.Ctx) error {
 	})
 }
 
+// POST /api/media/upload-multiple
+// Multipart: files[] + chat_id + text (optional) + reply_to_id (optional)
+func (h *Handler) UploadMultiple(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+
+	chatIDStr := c.FormValue("chat_id")
+	if chatIDStr == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "chat_id required")
+	}
+
+	chatID, err := uuid.Parse(chatIDStr)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat_id")
+	}
+
+	// Get all files
+	form, err := c.MultipartForm()
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid form data")
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		return fiber.NewError(fiber.StatusBadRequest, "no files provided")
+	}
+
+	// Create message first
+	textVal := c.FormValue("text")
+	var text *string
+	if textVal != "" {
+		text = &textVal
+	}
+
+	var replyToID *uuid.UUID
+	if replyToIDStr := c.FormValue("reply_to_id"); replyToIDStr != "" {
+		if parsed, err := uuid.Parse(replyToIDStr); err == nil {
+			replyToID = &parsed
+		}
+	}
+
+	msg, err := h.chatService.SendMessage(c.Context(), userID, chatpkg.SendMessageInput{
+		ChatID:    chatID,
+		Type:      "text",
+		Text:      text,
+		ReplyToID: replyToID,
+	})
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to create message")
+	}
+
+	// Upload all files and create attachments
+	attachments := []models.Attachment{}
+	for _, fileHeader := range files {
+		if fileHeader.Size > 50*1024*1024 {
+			continue // Skip files that are too large
+		}
+
+		result, uploadErr := h.service.Upload(c.Context(), fileHeader, userID)
+		if uploadErr != nil {
+			continue // Skip files that fail to upload
+		}
+
+		attachment := &models.Attachment{
+			ID:        uuid.New(),
+			MessageID: msg.ID,
+			Type:      result.Type,
+			URL:       result.URL,
+			FileName:  &result.FileName,
+			FileSize:  &result.Size,
+			MimeType:  &result.MimeType,
+		}
+
+		if createErr := h.chatRepo.CreateAttachment(c.Context(), attachment); createErr == nil {
+			attachments = append(attachments, *attachment)
+		}
+	}
+
+	if len(attachments) == 0 {
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to upload any files")
+	}
+
+	// Update message with attachments and broadcast
+	msg.Attachments = attachments
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(chatID, "new_message", msg, &userID)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":     msg,
+		"attachments": attachments,
+	})
+}
+
 // POST /api/media/avatar
 func (h *Handler) UploadAvatar(c *fiber.Ctx) error {
 	userID := auth.GetUserIDFromCtx(c)

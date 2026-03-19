@@ -68,6 +68,14 @@ export interface Attachment {
   thumbnail?: string
 }
 
+// For gallery view - all media from a message
+export interface MediaGalleryItem {
+  id: string
+  url: string
+  type: 'photo' | 'video' | 'gif'
+  thumbnail?: string
+}
+
 export interface Reaction {
   message_id: string
   user_id: string
