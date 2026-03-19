@@ -158,10 +158,12 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
       {/* Sender avatar for incoming messages */}
       {!isSelecting && !isOwn && (
         <div className="w-7 flex-shrink-0 self-end">
-          {!isGrouped && msg.sender && (
+          {!isGrouped && (
             <Avatar
-              name={`${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`}
-              url={msg.sender.avatar_url ? mediaUrl(msg.sender.avatar_url) : null}
+              name={msg.sender
+                ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`
+                : '?'}
+              url={msg.sender?.avatar_url ? mediaUrl(msg.sender.avatar_url) : null}
               size={28}
             />
           )}
@@ -200,7 +202,7 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
         <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in', hasMedia && 'px-2 py-1.5')}>
 
           {/* Sender name (groups/channels only, for incoming non-grouped) */}
-          {!isOwn && !isGrouped && msg.sender && (chatType === 'group' || chatType === 'channel') && (
+          {!isOwn && !isGrouped && (chatType === 'group' || chatType === 'channel') && msg.sender && (
             <p className="text-xs font-semibold text-primary-500 mb-1">
               {msg.sender.first_name}{msg.sender.last_name ? ' ' + msg.sender.last_name : ''}
             </p>

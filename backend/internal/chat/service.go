@@ -222,6 +222,12 @@ func (s *Service) SendMessage(ctx context.Context, senderID uuid.UUID, in SendMe
 		}
 	}
 
+	// Attach sender info so WebSocket broadcast includes the user object
+	if u, err := s.repo.GetUserByID(ctx, senderID); err == nil {
+		pub := u.ToPublic()
+		msg.Sender = &pub
+	}
+
 	return msg, nil
 }
 

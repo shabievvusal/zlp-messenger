@@ -39,6 +39,12 @@ func (r *Repository) CreateChat(ctx context.Context, chat *models.Chat) error {
 	return nil
 }
 
+func (r *Repository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	var u models.User
+	err := r.db.GetContext(ctx, &u, `SELECT * FROM users WHERE id = $1`, id)
+	return &u, err
+}
+
 func (r *Repository) GetChatByID(ctx context.Context, id uuid.UUID) (*models.Chat, error) {
 	var chat models.Chat
 	err := r.db.GetContext(ctx, &chat, `SELECT * FROM chats WHERE id = $1`, id)
@@ -221,7 +227,63 @@ func (r *Repository) GetMessages(ctx context.Context, chatID uuid.UUID, limit, o
 		return msgs, err
 	}
 	_ = r.populateAttachments(ctx, msgs)
+	_ = r.populateSenders(ctx, msgs)
 	return msgs, nil
+}
+
+// populateSenders fetches sender info for a slice of messages in one query.
+func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message) error {
+	idSet := make(map[uuid.UUID]struct{})
+	for _, m := range msgs {
+		if m.SenderID != nil {
+			idSet[*m.SenderID] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return nil
+	}
+	ids := make([]interface{}, 0, len(idSet))
+	placeholders := make([]string, 0, len(idSet))
+	i := 1
+	for id := range idSet {
+		ids = append(ids, id)
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
+		i++
+	}
+	query := fmt.Sprintf(
+		`SELECT id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	type row struct {
+		ID        uuid.UUID `db:"id"`
+		Username  string    `db:"username"`
+		FirstName string    `db:"first_name"`
+		LastName  *string   `db:"last_name"`
+		AvatarURL *string   `db:"avatar_url"`
+	}
+	var rows []row
+	if err := r.db.SelectContext(ctx, &rows, query, ids...); err != nil {
+		return err
+	}
+	userMap := make(map[uuid.UUID]row, len(rows))
+	for _, u := range rows {
+		userMap[u.ID] = u
+	}
+	for i := range msgs {
+		if msgs[i].SenderID == nil {
+			continue
+		}
+		if u, ok := userMap[*msgs[i].SenderID]; ok {
+			msgs[i].Sender = &models.PublicUser{
+				ID:        u.ID,
+				Username:  u.Username,
+				FirstName: u.FirstName,
+				LastName:  u.LastName,
+				AvatarURL: u.AvatarURL,
+			}
+		}
+	}
+	return nil
 }
 
 // populateAttachments fetches attachments for a slice of messages in one query
