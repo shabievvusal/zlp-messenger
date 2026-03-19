@@ -51,8 +51,8 @@ export function useWebRTC(send: SendFn) {
     }
     pcRef.current?.close()
     pcRef.current = null
-    updateActive({ status: 'ended' })
-  }, [send, updateActive])
+    useCallStore.getState().clearAll()
+  }, [send])
 
   // Keep the ref current so PC handlers can always call the latest version
   closeCallRef.current = closeCall
