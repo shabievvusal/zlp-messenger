@@ -216,12 +216,11 @@ func (h *Handler) GetFile(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "file path required")
 	}
 
-	// First request object metadata.
-	obj, stat, err := h.service.GetObject(c.Context(), objectPath, 0, 0)
+	// HEAD request to get metadata (size, content-type) without downloading the file.
+	stat, err := h.service.StatObject(c.Context(), objectPath)
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "file not found")
 	}
-	_ = obj.Close()
 
 	c.Set("Accept-Ranges", "bytes")
 	if stat.ContentType != "" {
@@ -231,7 +230,7 @@ func (h *Handler) GetFile(c *fiber.Ctx) error {
 
 	rangeHeader := c.Get("Range")
 	if rangeHeader == "" {
-		stream, _, err := h.service.GetObject(c.Context(), objectPath, 0, 0)
+		stream, err := h.service.StreamObject(c.Context(), objectPath, 0, 0)
 		if err != nil {
 			return fiber.NewError(fiber.StatusNotFound, "file not found")
 		}
@@ -245,7 +244,7 @@ func (h *Handler) GetFile(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusRequestedRangeNotSatisfiable, "invalid range")
 	}
 
-	stream, _, err := h.service.GetObject(c.Context(), objectPath, start, end)
+	stream, err := h.service.StreamObject(c.Context(), objectPath, start, end)
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "file not found")
 	}

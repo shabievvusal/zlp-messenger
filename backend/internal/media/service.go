@@ -89,22 +89,23 @@ func (s *Service) UploadAvatar(ctx context.Context, file *multipart.FileHeader, 
 	return fmt.Sprintf("/api/media/file/%s", objectName), nil
 }
 
-// GetObject fetches a raw object from MinIO for streaming to the client.
-func (s *Service) GetObject(ctx context.Context, objectPath string, rangeStart, rangeEnd int64) (interface{ Read([]byte) (int, error); Close() error }, *minio.ObjectInfo, error) {
+// StatObject returns metadata (HEAD request, no data transfer).
+func (s *Service) StatObject(ctx context.Context, objectPath string) (*minio.ObjectInfo, error) {
+	stat, err := s.client.StatObject(ctx, s.bucket, objectPath, minio.StatObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &stat, nil
+}
+
+// StreamObject opens a byte-range stream from MinIO.
+// Pass rangeEnd=0 to stream the full object.
+func (s *Service) StreamObject(ctx context.Context, objectPath string, rangeStart, rangeEnd int64) (*minio.Object, error) {
 	opts := minio.GetObjectOptions{}
 	if rangeEnd > 0 {
 		_ = opts.SetRange(rangeStart, rangeEnd)
 	}
-	obj, err := s.client.GetObject(ctx, s.bucket, objectPath, opts)
-	if err != nil {
-		return nil, nil, err
-	}
-	stat, err := obj.Stat()
-	if err != nil {
-		obj.Close()
-		return nil, nil, err
-	}
-	return obj, &stat, nil
+	return s.client.GetObject(ctx, s.bucket, objectPath, opts)
 }
 
 func detectType(mimeType, filename string) models.AttachmentType {
