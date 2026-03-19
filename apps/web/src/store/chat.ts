@@ -59,11 +59,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (msg) =>
     set((state) => {
       const existing = state.messages[msg.chat_id] ?? []
-      if (existing.some((m) => m.id === msg.id)) {
-        console.log('[store] addMessage SKIPPED (dedup):', msg.id, 'attachments:', msg.attachments?.length ?? 0)
-        return state
-      }
-      console.log('[store] addMessage OK:', msg.id, 'attachments:', msg.attachments?.length ?? 0, msg.attachments)
+      if (existing.some((m) => m.id === msg.id)) return state
       return {
         messages: {
           ...state.messages,
@@ -73,18 +69,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
   updateMessage: (msg) =>
-    set((state) => {
-      const found = (state.messages[msg.chat_id] ?? []).some((m) => m.id === msg.id)
-      console.log('[store] updateMessage:', msg.id, found ? 'FOUND' : 'NOT FOUND', 'attachments:', msg.attachments?.length ?? 0)
-      return {
-        messages: {
-          ...state.messages,
-          [msg.chat_id]: (state.messages[msg.chat_id] ?? []).map((m) =>
-            m.id === msg.id ? msg : m
-          ),
-        },
-      }
-    }),
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [msg.chat_id]: (state.messages[msg.chat_id] ?? []).map((m) =>
+          m.id === msg.id ? msg : m
+        ),
+      },
+    })),
 
   removeMessage: (chatId, msgId) =>
     set((state) => ({

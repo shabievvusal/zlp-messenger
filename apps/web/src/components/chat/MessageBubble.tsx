@@ -197,7 +197,6 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           )}
 
           {/* Attachments */}
-          {(msg.attachments ?? []).length > 0 ? (console.log('[bubble] msg', msg.id, 'attachments:', msg.attachments), null) : null}
           {(msg.attachments ?? []).map((a) => (
             <div key={a.id} className="mt-1">
               {a.type === 'photo' && (

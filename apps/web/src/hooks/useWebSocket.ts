@@ -147,9 +147,6 @@ export function useWebSocket() {
       ws.onmessage = (e) => {
         try {
           const event: WSEvent = JSON.parse(e.data)
-          if (event.type === 'new_message') {
-            console.log('[ws] new_message payload:', JSON.stringify(event.payload, null, 2))
-          }
           handleEvent(event)
         } catch { /* ignore */ }
       }

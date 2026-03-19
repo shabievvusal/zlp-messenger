@@ -133,30 +133,22 @@ export function MessageInput({ chatId }: Props) {
         throw new Error(errData.error ?? 'Upload failed')
       }
       const data = await res.json()
-      console.log('[upload] raw response:', JSON.stringify(data, null, 2))
       // Backend returns { message: {...}, attachment: {...} } when chat_id is provided
       const msg = data.message ?? data
       const attachment = data.attachment
-      console.log('[upload] msg:', msg)
-      console.log('[upload] attachment:', attachment)
-      console.log('[upload] msg.id:', msg?.id)
       if (msg?.id) {
         const attachments = attachment
           ? [attachment]
           : (msg.attachments?.length ? msg.attachments : [])
-        console.log('[upload] final attachments array:', attachments)
         const fullMsg = {
           ...msg,
           attachments,
           sender: user ?? undefined,
           reply_to: currentReplyTo ?? undefined,
         }
-        console.log('[upload] fullMsg to store:', fullMsg)
         addMessage(fullMsg)
         updateMessage(fullMsg)
         setReplyTo(null)
-      } else {
-        console.warn('[upload] msg has no id — message NOT added to store. data was:', data)
       }
     } catch (err: unknown) {
       toast.error((err as Error).message || 'Ошибка загрузки файла')
