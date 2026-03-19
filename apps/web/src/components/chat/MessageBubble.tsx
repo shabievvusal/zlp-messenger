@@ -152,7 +152,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
 
       {/* Bubble */}
       <div
-        className={clsx('max-w-[70%] min-w-0', isGrouped ? (isOwn ? 'mr-8' : 'ml-8') : '')}
+        className="max-w-[70%] min-w-0"
         onContextMenu={isSelecting ? undefined : openMenu}
       >
         {/* Reply preview */}

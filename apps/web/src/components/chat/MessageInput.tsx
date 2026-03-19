@@ -133,10 +133,19 @@ export function MessageInput({ chatId }: Props) {
         throw new Error(errData.error ?? 'Upload failed')
       }
       const data = await res.json()
-      // Backend may return { message: ... } or the message directly
+      // Backend returns { message: {...}, attachment: {...} } when chat_id is provided
       const msg = data.message ?? data
+      const attachment = data.attachment
       if (msg?.id) {
-        addMessage({ ...msg, sender: user ?? undefined, reply_to: currentReplyTo ?? undefined })
+        const attachments = attachment
+          ? [attachment]
+          : (msg.attachments?.length ? msg.attachments : [])
+        addMessage({
+          ...msg,
+          attachments,
+          sender: user ?? undefined,
+          reply_to: currentReplyTo ?? undefined,
+        })
         setReplyTo(null)
       }
     } catch (err: unknown) {

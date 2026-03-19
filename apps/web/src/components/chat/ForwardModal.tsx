@@ -24,9 +24,15 @@ export function ForwardModal({ messages, onClose }: Props) {
     setLoading(true)
     try {
       for (const msg of messages) {
-        const { data } = await chatApi.forwardMessage(targetChatId, msg.id)
-        // Add locally if forwarding to current chat
-        if (data?.id) addMessage(data)
+        const { data } = await chatApi.forwardMessage(targetChatId, msg)
+        // Add locally, copying text & attachments from original (backend may not embed them)
+        if (data?.id) {
+          addMessage({
+            ...data,
+            text: data.text ?? msg.text,
+            attachments: data.attachments?.length ? data.attachments : (msg.attachments ?? []),
+          })
+        }
       }
       const targetTitle = chats.find((c) => c.id === targetChatId)?.title ?? 'чат'
       toast.success(`Переслано в «${targetTitle}»`)
