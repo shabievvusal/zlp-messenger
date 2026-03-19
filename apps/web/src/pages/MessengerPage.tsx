@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
+import { useEffect, useCallback, useRef, useState, memo } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Sidebar } from '@/components/sidebar/Sidebar'
 import { ChatWindow } from '@/components/chat/ChatWindow'
@@ -50,6 +50,15 @@ export function MessengerPage() {
   const removeLiveCall = useGroupCallStore((s) => s.removeLiveCall)
 
   const [isCallMinimized, setIsCallMinimized] = useState(false)
+  const [isCallMaximized, setIsCallMaximized] = useState(false)
+  const [isGroupCallMaximized, setIsGroupCallMaximized] = useState(false)
+
+  // Persistent audio for 1-1 calls — never unmounts during a call so audio continues when minimized
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
+  useEffect(() => {
+    if (!remoteAudioRef.current || !active?.remoteStream) return
+    remoteAudioRef.current.srcObject = active.remoteStream
+  }, [active?.remoteStream])
 
   // Таймаут звонка — если нет ответа 45 сек, вешаем трубку
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
@@ -328,12 +337,19 @@ export function MessengerPage() {
       {incoming && (
         <IncomingCallModal onAccept={handleAccept} onDecline={handleDecline} />
       )}
+      {/* Persistent audio for 1-1 call — always mounted while call is active */}
+      {active && active.status !== 'ended' && (
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      )}
+
       {active && active.status !== 'ended' && !isCallMinimized && (
         <ActiveCallScreen
           onHangup={handleHangup}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
           onMinimize={() => setIsCallMinimized(true)}
+          isMaximized={isCallMaximized}
+          onToggleMaximize={() => setIsCallMaximized(v => !v)}
         />
       )}
       {active && active.status !== 'ended' && isCallMinimized && (
@@ -345,12 +361,15 @@ export function MessengerPage() {
       )}
 
       {/* Group call UI */}
+      {groupActive && <GroupAudioManager />}
       {groupActive && !groupActive.isMinimized && (
         <GroupCallScreen
           onLeave={handleLeaveGroupCall}
           onToggleMute={handleGroupToggleMute}
           onToggleVideo={handleGroupToggleVideo}
           onMinimize={() => groupSetMinimized(true)}
+          isMaximized={isGroupCallMaximized}
+          onToggleMaximize={() => setIsGroupCallMaximized(v => !v)}
         />
       )}
       {groupActive && groupActive.isMinimized && (
@@ -362,4 +381,25 @@ export function MessengerPage() {
       )}
     </div>
   )
+}
+
+// Renders one hidden <audio> per remote group call participant — persists regardless of minimize/maximize
+const GroupAudioManager = memo(function GroupAudioManager() {
+  const participants = useGroupCallStore((s) => s.active?.participants ?? [])
+  return (
+    <>
+      {participants.map((p) => (
+        <ParticipantAudio key={p.userId} stream={p.stream} />
+      ))}
+    </>
+  )
+})
+
+function ParticipantAudio({ stream }: { stream: MediaStream | null }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  useEffect(() => {
+    if (!audioRef.current || !stream) return
+    audioRef.current.srcObject = stream
+  }, [stream])
+  return <audio ref={audioRef} autoPlay playsInline className="hidden" />
 }

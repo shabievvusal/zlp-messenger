@@ -65,6 +65,11 @@ export const chatApi = {
   leaveChat: (chatId: string) =>
     api.delete(`/chats/${chatId}/leave`),
 
+  getGroupCallState: (chatId: string) =>
+    api.get<{ active: boolean; call_id?: string; participants?: { user_id: string; user_name: string }[] }>(
+      `/chats/${chatId}/call`
+    ),
+
   getInviteLink: (chatId: string) =>
     api.get<{ invite_link: string }>(`/chats/${chatId}/invite-link`),
 

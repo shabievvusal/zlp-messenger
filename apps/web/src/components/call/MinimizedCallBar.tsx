@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCallStore } from '@/store/call'
 
 interface Props {
@@ -10,13 +10,6 @@ interface Props {
 export function MinimizedCallBar({ onHangup, onToggleMute, onExpand }: Props) {
   const active = useCallStore((s) => s.active)
   const [elapsed, setElapsed] = useState(0)
-  const remoteAudioRef = useRef<HTMLAudioElement>(null)
-
-  // Keep remote audio playing while minimized
-  useEffect(() => {
-    if (!active?.remoteStream || !remoteAudioRef.current) return
-    remoteAudioRef.current.srcObject = active.remoteStream
-  }, [active?.remoteStream])
 
   useEffect(() => {
     if (!active?.startedAt) return
@@ -50,9 +43,6 @@ export function MinimizedCallBar({ onHangup, onToggleMute, onExpand }: Props) {
           rounded-b-2xl shadow-2xl border border-white/10
           min-w-[240px] max-w-[380px] animate-slideDown"
       >
-      {/* Hidden audio — must always play */}
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-
       {/* Green pulse dot */}
       <span className="relative flex-shrink-0">
         <span className="w-2 h-2 rounded-full bg-green-400 block" />

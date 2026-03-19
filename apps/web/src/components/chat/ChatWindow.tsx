@@ -41,6 +41,7 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
   const loadingMore = useRef(false)
   const [showProfile, setShowProfile] = useState(false)
   const liveGroupCall = useGroupCallStore((s) => chat ? s.liveCalls[chat.id] : undefined)
+  const setLiveCall = useGroupCallStore((s) => s.setLiveCall)
 
   const {
     selectedMsgIds, isSelecting, clearSelection,
@@ -71,6 +72,24 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
     setHasMore(true)
     clearSelection()
     loadMessages(chatId, 0)
+
+    // For group/channel chats: check if there's an active group call
+    const type = chats.find((c) => c.id === chatId)?.type
+    if (type === 'group' || type === 'channel') {
+      chatApi.getGroupCallState(chatId)
+        .then(({ data }) => {
+          if (data?.active && data.call_id && data.participants) {
+            setLiveCall(chatId, {
+              callId: data.call_id,
+              participants: data.participants.map((p) => ({
+                userId: p.user_id,
+                userName: p.user_name,
+              })),
+            })
+          }
+        })
+        .catch(() => {})
+    }
   }, [chatId])
 
   const handleLoadMore = useCallback(async () => {
