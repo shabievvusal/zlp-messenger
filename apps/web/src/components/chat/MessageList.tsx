@@ -22,6 +22,13 @@ export function MessageList({ chatId, onLoadMore }: Props) {
   const prevLenRef = useRef(0)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
+  // When switching chats — reset counter and jump to bottom immediately
+  useEffect(() => {
+    prevLenRef.current = 0
+    setShowScrollBtn(false)
+    bottomRef.current?.scrollIntoView()
+  }, [chatId])
+
   // Auto scroll to bottom on new message
   useEffect(() => {
     const added = messages.length - prevLenRef.current

@@ -164,6 +164,29 @@ func (s *Service) SendMessage(ctx context.Context, senderID uuid.UUID, in SendMe
 		return nil, fmt.Errorf("create message: %w", err)
 	}
 
+	// When forwarding, copy attachments from the original message so recipients see media
+	if in.ForwardFromID != nil {
+		origAttachments, _ := s.repo.GetAttachments(ctx, *in.ForwardFromID)
+		for _, a := range origAttachments {
+			newA := models.Attachment{
+				ID:        uuid.New(),
+				MessageID: msg.ID,
+				Type:      a.Type,
+				URL:       a.URL,
+				FileName:  a.FileName,
+				FileSize:  a.FileSize,
+				MimeType:  a.MimeType,
+				Width:     a.Width,
+				Height:    a.Height,
+				Duration:  a.Duration,
+				Thumbnail: a.Thumbnail,
+			}
+			if err := s.repo.CreateAttachment(ctx, &newA); err == nil {
+				msg.Attachments = append(msg.Attachments, newA)
+			}
+		}
+	}
+
 	return msg, nil
 }
 
