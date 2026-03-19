@@ -11,12 +11,14 @@ type SendFn = (type: string, payload: unknown) => void
 
 export function useWebRTC(send: SendFn) {
   const pcRef = useRef<RTCPeerConnection | null>(null)
+  const pendingICERef = useRef<RTCIceCandidateInit[]>([])
   const updateActive = useCallStore((s) => s.updateActive)
 
   const createPC = useCallback((callId: string, targetId: string) => {
     if (pcRef.current) {
       pcRef.current.close()
     }
+    pendingICERef.current = []
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     pcRef.current = pc
@@ -85,6 +87,12 @@ export function useWebRTC(send: SendFn) {
     stream.getTracks().forEach((t) => pc.addTrack(t, stream))
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer))
+    // Flush buffered ICE candidates that arrived before remote description was set
+    for (const c of pendingICERef.current) {
+      await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
+    }
+    pendingICERef.current = []
+
     const answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
@@ -95,14 +103,28 @@ export function useWebRTC(send: SendFn) {
   // ── Handle answer from callee ─────────────────────────────
 
   const handleAnswer = useCallback(async (answer: RTCSessionDescriptionInit) => {
-    await pcRef.current?.setRemoteDescription(new RTCSessionDescription(answer))
+    const pc = pcRef.current
+    if (!pc) return
+    await pc.setRemoteDescription(new RTCSessionDescription(answer))
+    // Flush buffered ICE candidates that arrived before remote description was set
+    for (const c of pendingICERef.current) {
+      await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
+    }
+    pendingICERef.current = []
   }, [])
 
   // ── Handle ICE candidate ──────────────────────────────────
 
   const handleICE = useCallback(async (candidate: RTCIceCandidateInit) => {
+    const pc = pcRef.current
+    if (!pc) return
+    // Buffer candidates until remote description is set
+    if (!pc.remoteDescription) {
+      pendingICERef.current.push(candidate)
+      return
+    }
     try {
-      await pcRef.current?.addIceCandidate(new RTCIceCandidate(candidate))
+      await pc.addIceCandidate(new RTCIceCandidate(candidate))
     } catch { /* ignore */ }
   }, [])
 

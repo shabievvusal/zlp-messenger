@@ -14,17 +14,23 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
 
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
 
-  // Attach streams to video elements
+  // Attach local stream to local video element
   useEffect(() => {
     if (localVideoRef.current && active?.localStream) {
       localVideoRef.current.srcObject = active.localStream
     }
   }, [active?.localStream])
 
+  // Attach remote stream to video (for video calls) and audio (always, for voice)
   useEffect(() => {
-    if (remoteVideoRef.current && active?.remoteStream) {
+    if (!active?.remoteStream) return
+    if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = active.remoteStream
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = active.remoteStream
     }
   }, [active?.remoteStream])
 
@@ -51,7 +57,10 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
   return (
     <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col text-white">
 
-      {/* Remote video (background) */}
+      {/* Hidden audio element — plays remote audio for all call types */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
+      {/* Remote video (background, video calls only) */}
       {isVideo && active.remoteStream ? (
         <video
           ref={remoteVideoRef}
