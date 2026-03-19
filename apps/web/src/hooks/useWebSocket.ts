@@ -7,10 +7,10 @@ import type { WSEvent, Message } from '@/types'
 const RECONNECT_DELAY = 3000
 
 function getWsUrl(token: string) {
+  // Всегда вычисляем из текущего хоста — работает и на HTTP и на HTTPS
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const host = window.location.host
-  const base = import.meta.env.VITE_WS_URL || `${proto}://${host}/ws`
-  return `${base}?token=${token}`
+  return `${proto}://${host}/ws?token=${token}`
 }
 
 // Exposed so other hooks (useWebRTC) can consume call_webrtc events
