@@ -31,17 +31,35 @@ export function VoiceMessage({ attachment, isOwn }: Props) {
     const audio = audioRef.current
     if (!audio) return
 
-    const onLoaded = () => { setDuration(audio.duration || 0); setLoading(false) }
+    console.log('[voice] src:', attachment.url)
+
+    const onLoaded = () => {
+      console.log('[voice] loadedmetadata, duration:', audio.duration)
+      setDuration(audio.duration || 0)
+      setLoading(false)
+    }
+    const onCanPlay = () => {
+      console.log('[voice] canplay')
+      setLoading(false)
+    }
+    const onError = (e: Event) => {
+      const err = (e.target as HTMLAudioElement).error
+      console.error('[voice] audio error:', err?.code, err?.message)
+      setLoading(false)
+    }
     const onTime = () => setCurrentTime(audio.currentTime)
     const onEnded = () => { setPlaying(false); setCurrentTime(0) }
 
     audio.addEventListener('loadedmetadata', onLoaded)
+    audio.addEventListener('canplay', onCanPlay)
+    audio.addEventListener('error', onError)
     audio.addEventListener('timeupdate', onTime)
     audio.addEventListener('ended', onEnded)
-    audio.addEventListener('canplay', () => setLoading(false))
 
     return () => {
       audio.removeEventListener('loadedmetadata', onLoaded)
+      audio.removeEventListener('canplay', onCanPlay)
+      audio.removeEventListener('error', onError)
       audio.removeEventListener('timeupdate', onTime)
       audio.removeEventListener('ended', onEnded)
     }
