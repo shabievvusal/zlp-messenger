@@ -64,13 +64,13 @@ export function LoginPage() {
             ZLP Messenger
           </h1>
           <p className="text-center text-gray-500 dark:text-gray-400 mt-1 mb-7 text-sm">
-            Sign in to your account
+            Войдите в свой аккаунт
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Username / Email / Phone
+                Логин / Email / Телефон
               </label>
               <input
                 type="text"
@@ -79,13 +79,13 @@ export function LoginPage() {
                 value={form.login}
                 onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))}
                 className="input-base"
-                placeholder="Enter your login"
+                placeholder="Введите логин"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Password
+                Пароль
               </label>
               <input
                 type="password"
@@ -111,18 +111,18 @@ export function LoginPage() {
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="spinner" /> Signing in...
+                  <span className="spinner" /> Вход...
                 </span>
-              ) : 'Sign In'}
+              ) : 'Войти'}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-            No account?{' '}
+            Нет аккаунта?{' '}
             <Link to="/register"
               className="text-primary-500 hover:text-primary-600 font-semibold
                 transition-colors">
-              Register
+              Зарегистрироваться
             </Link>
           </p>
         </div>

@@ -45,12 +45,18 @@ export function NewChatModal({ onClose }: Props) {
     setLoading(true)
     try {
       const { data } = await chatApi.createPrivate(user.id)
-      upsertChat(data)
+      // Enrich with local user data so title shows immediately without refresh
+      upsertChat({
+        ...data,
+        title: data.title || `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}`,
+        peer_user_id: data.peer_user_id || user.id,
+        avatar_url: data.avatar_url || user.avatar_url,
+      })
       setActiveChat(data.id)
       navigate(`/chat/${data.id}`)
       onClose()
     } catch {
-      toast.error('Failed to open chat')
+      toast.error('Не удалось открыть чат')
     } finally {
       setLoading(false)
     }
@@ -81,7 +87,7 @@ export function NewChatModal({ onClose }: Props) {
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            New Chat
+            Новый чат
           </h2>
 
           {/* Tabs */}
@@ -96,7 +102,7 @@ export function NewChatModal({ onClose }: Props) {
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                {t === 'private' ? '👤 Private' : '👥 Group'}
+                {t === 'private' ? '👤 Личное' : '👥 Группа'}
               </button>
             ))}
           </div>
@@ -115,7 +121,7 @@ export function NewChatModal({ onClose }: Props) {
                 <input
                   autoFocus
                   type="text"
-                  placeholder="Search by username or name..."
+                  placeholder="Поиск по имени или @username..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="input-base pl-9 pr-10 text-sm"
@@ -131,12 +137,12 @@ export function NewChatModal({ onClose }: Props) {
             <div className="max-h-72 overflow-y-auto scrollbar-thin">
               {query.length >= 2 && results.length === 0 && !searching && (
                 <p className="text-center text-gray-400 text-sm py-8 animate-fadeIn">
-                  No users found
+                  Пользователи не найдены
                 </p>
               )}
               {query.length < 2 && (
                 <p className="text-center text-gray-400 text-sm py-8">
-                  Type at least 2 characters
+                  Введите минимум 2 символа
                 </p>
               )}
               {results.map((user, i) => (
@@ -168,7 +174,7 @@ export function NewChatModal({ onClose }: Props) {
           <div className="px-6 pb-6 space-y-3 animate-fadeIn">
             <input
               type="text"
-              placeholder="Group name"
+              placeholder="Название группы"
               value={groupTitle}
               onChange={(e) => setGroupTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleGroup()}
@@ -185,9 +191,9 @@ export function NewChatModal({ onClose }: Props) {
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="spinner" /> Creating...
+                  <span className="spinner" /> Создание...
                 </span>
-              ) : 'Create Group'}
+              ) : 'Создать группу'}
             </button>
           </div>
         )}
@@ -198,7 +204,7 @@ export function NewChatModal({ onClose }: Props) {
             className="w-full py-2 text-sm text-gray-400 hover:text-gray-600
               dark:hover:text-gray-300 transition-colors"
           >
-            Cancel
+            Отмена
           </button>
         </div>
       </div>

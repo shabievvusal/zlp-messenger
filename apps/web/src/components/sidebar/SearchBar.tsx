@@ -18,7 +18,7 @@ export function SearchBar({ value, onChange }: Props) {
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Search chats..."
+          placeholder="Поиск чатов..."
           className="w-full pl-9 pr-4 py-2 bg-gray-100 dark:bg-gray-700
             rounded-full text-sm text-gray-900 dark:text-gray-100
             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 transition"

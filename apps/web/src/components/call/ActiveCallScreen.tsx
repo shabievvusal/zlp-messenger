@@ -114,7 +114,7 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
           <ControlBtn
             active={active.isMuted}
             onClick={onToggleMute}
-            label={active.isMuted ? 'Unmute' : 'Mute'}
+            label={active.isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
             activeColor="bg-white/25"
           >
             {active.isMuted ? (
@@ -144,7 +144,7 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
             <ControlBtn
               active={active.isVideoOff}
               onClick={onToggleVideo}
-              label={active.isVideoOff ? 'Show video' : 'Hide video'}
+              label={active.isVideoOff ? 'Включить камеру' : 'Выключить камеру'}
               activeColor="bg-white/20"
             >
               {active.isVideoOff ? (
@@ -159,7 +159,7 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
             <ControlBtn
               active={false}
               onClick={() => {}}
-              label="Speaker"
+              label="Громкоговоритель"
               activeColor="bg-white/20"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

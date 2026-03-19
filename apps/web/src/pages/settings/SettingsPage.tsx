@@ -25,9 +25,9 @@ export function SettingsPage() {
     try {
       const { data } = await api.patch('/users/me', form)
       setAuth(data, accessToken!)
-      toast.success('Profile updated')
+      toast.success('Профиль обновлён')
     } catch {
-      toast.error('Failed to update profile')
+      toast.error('Не удалось обновить профиль')
     } finally {
       setSaving(false)
     }
@@ -42,9 +42,9 @@ export function SettingsPage() {
     try {
       const { data } = await api.post('/media/avatar', formData)
       if (user) setAuth({ ...user, avatar_url: data.avatar_url }, accessToken!)
-      toast.success('Avatar updated')
+      toast.success('Аватар обновлён')
     } catch {
-      toast.error('Failed to upload avatar')
+      toast.error('Не удалось загрузить аватар')
     } finally {
       setUploadingAvatar(false)
       e.target.value = ''
@@ -65,7 +65,7 @@ export function SettingsPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="font-semibold text-gray-900 dark:text-gray-100">Settings</h1>
+        <h1 className="font-semibold text-gray-900 dark:text-gray-100">Настройки</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -99,10 +99,10 @@ export function SettingsPage() {
         {/* Fields */}
         <div className="px-4 py-6 space-y-4 max-w-md mx-auto w-full">
           {[
-            { label: 'First Name', key: 'first_name', required: true },
-            { label: 'Last Name', key: 'last_name' },
-            { label: 'Username', key: 'username', required: true, prefix: '@' },
-            { label: 'Bio', key: 'bio', multiline: true },
+            { label: 'Имя', key: 'first_name', required: true },
+            { label: 'Фамилия', key: 'last_name' },
+            { label: 'Имя пользователя', key: 'username', required: true, prefix: '@' },
+            { label: 'О себе', key: 'bio', multiline: true },
           ].map(({ label, key, required, prefix, multiline }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
@@ -113,7 +113,7 @@ export function SettingsPage() {
                   value={form[key as keyof typeof form]}
                   onChange={(e) => update(key, e.target.value)}
                   rows={3}
-                  placeholder={`Your ${label.toLowerCase()}...`}
+                  placeholder={`${label}...`}
                   className="input-base resize-none"
                 />
               ) : (
@@ -143,9 +143,9 @@ export function SettingsPage() {
           >
             {saving ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="spinner" /> Saving...
+                <span className="spinner" /> Сохранение...
               </span>
-            ) : 'Save Changes'}
+            ) : 'Сохранить изменения'}
           </button>
         </div>
       </div>

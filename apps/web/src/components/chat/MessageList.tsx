@@ -3,7 +3,9 @@ import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { MessageBubble } from './MessageBubble'
 import { DateDivider } from './DateDivider'
+import { useChatCtx } from '@/contexts/ChatContext'
 import { format, isSameDay, differenceInMinutes } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import type { Message } from '@/types'
 
 interface Props {
@@ -14,11 +16,11 @@ interface Props {
 export function MessageList({ chatId, onLoadMore }: Props) {
   const messages = useChatStore((s) => s.messages[chatId] ?? [])
   const currentUser = useAuthStore((s) => s.user)
+  const { highlightMsgId, setHighlightMsgId } = useChatCtx()
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLenRef = useRef(0)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
-  const [unreadIdx, setUnreadIdx] = useState<number | null>(null)
 
   // Auto scroll to bottom on new message
   useEffect(() => {
@@ -36,14 +38,26 @@ export function MessageList({ chatId, onLoadMore }: Props) {
     prevLenRef.current = messages.length
   }, [messages.length])
 
-  // Show scroll-to-bottom button
+  // Scroll-to and highlight message (from search)
+  useEffect(() => {
+    if (!highlightMsgId) return
+    const container = containerRef.current
+    if (!container) return
+    const el = container.querySelector(`[data-msgid="${highlightMsgId}"]`) as HTMLElement | null
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('msg-highlight')
+      setTimeout(() => el.classList.remove('msg-highlight'), 2000)
+    }
+    setHighlightMsgId(null)
+  }, [highlightMsgId])
+
+  // Show scroll-to-bottom button + infinite scroll
   const handleScroll = useCallback(() => {
     const el = containerRef.current
     if (!el) return
     const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     setShowScrollBtn(fromBottom > 300)
-
-    // Infinite scroll — load more on top
     if (el.scrollTop < 100) onLoadMore()
   }, [onLoadMore])
 
@@ -61,11 +75,9 @@ export function MessageList({ chatId, onLoadMore }: Props) {
       >
         {messages.map((msg, idx) => {
           const prev = messages[idx - 1]
-          const next = messages[idx + 1]
           const showDate = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at))
           const isOwn = msg.sender_id === currentUser?.id
 
-          // Group messages from same sender within 5 minutes (service messages never group)
           const isGrouped = !showDate &&
             msg.type !== 'service' &&
             !!prev &&
@@ -74,9 +86,9 @@ export function MessageList({ chatId, onLoadMore }: Props) {
             differenceInMinutes(new Date(msg.created_at), new Date(prev.created_at)) < 5
 
           return (
-            <div key={msg.id}>
+            <div key={msg.id} data-msgid={msg.id}>
               {showDate && (
-                <DateDivider date={format(new Date(msg.created_at), 'MMMM d, yyyy')} />
+                <DateDivider date={format(new Date(msg.created_at), 'd MMMM yyyy', { locale: ru })} />
               )}
               <div className={isGrouped ? 'mt-0.5' : 'mt-3'}>
                 <MessageBubble msg={msg} isOwn={isOwn} isGrouped={isGrouped} />

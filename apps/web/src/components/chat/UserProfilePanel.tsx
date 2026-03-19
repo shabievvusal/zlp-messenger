@@ -39,7 +39,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">User Info</span>
+          <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">Информация</span>
         </div>
 
         {/* Avatar + name */}
@@ -54,7 +54,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
             {profile?.username && (
               <p className="text-sm text-primary-500">@{profile.username}</p>
             )}
-            <p className="text-xs text-gray-400 mt-1">last seen recently</p>
+            <p className="text-xs text-gray-400 mt-1">был(а) недавно</p>
           </div>
 
           {/* Call buttons */}
@@ -67,7 +67,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
-              <span className="text-xs text-primary-500 font-medium">Call</span>
+              <span className="text-xs text-primary-500 font-medium">Звонок</span>
             </button>
             <button onClick={() => { onCall('video'); onClose() }}
               className="flex flex-col items-center gap-1 px-5 py-3 rounded-2xl
@@ -77,7 +77,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              <span className="text-xs text-primary-500 font-medium">Video</span>
+              <span className="text-xs text-primary-500 font-medium">Видео</span>
             </button>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
         {/* Bio */}
         {profile?.bio && (
           <div className="px-4 py-3 border-t border-black/5 dark:border-white/5">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1.5 font-medium">Bio</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1.5 font-medium">О себе</p>
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{profile.bio}</p>
           </div>
         )}
@@ -93,7 +93,7 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
         {/* Username */}
         {profile?.username && (
           <div className="px-4 py-3 border-t border-black/5 dark:border-white/5">
-            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1.5 font-medium">Username</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1.5 font-medium">Имя пользователя</p>
             <p className="text-sm text-primary-500 font-medium">@{profile.username}</p>
           </div>
         )}

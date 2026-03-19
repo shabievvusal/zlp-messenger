@@ -31,7 +31,7 @@ export function EmptyChat() {
         ZLP Messenger
       </h2>
       <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-xs leading-relaxed">
-        Select a conversation or start a new one
+        Выберите чат или начните новый
       </p>
 
       {/* Decorative dots */}

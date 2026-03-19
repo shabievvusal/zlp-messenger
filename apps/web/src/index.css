@@ -156,6 +156,16 @@
     @apply w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin;
   }
 
+  /* ── Message search highlight ────────────────────────── */
+
+  .msg-highlight {
+    animation: msgHighlight 2s ease-out forwards;
+  }
+  @keyframes msgHighlight {
+    0%, 30% { background-color: rgba(42, 171, 238, 0.25); border-radius: 8px; }
+    100% { background-color: transparent; }
+  }
+
   /* ── Shimmer skeleton ─────────────────────────────────── */
 
   .skeleton {

@@ -79,12 +79,12 @@ export function Sidebar() {
                     @{user?.username}
                   </p>
                 </div>
-                <SideMenuItem icon="⚙️" label="Settings"
+                <SideMenuItem icon="⚙️" label="Настройки"
                   onClick={() => { navigate('/settings'); setShowMenu(false) }} />
-                <SideMenuItem icon="🔖" label="Saved Messages"
+                <SideMenuItem icon="🔖" label="Избранное"
                   onClick={() => setShowMenu(false)} />
                 <div className="my-1 mx-2 border-t border-black/5 dark:border-white/5" />
-                <SideMenuItem icon="🚪" label="Log Out" onClick={handleLogout} danger />
+                <SideMenuItem icon="🚪" label="Выйти" onClick={handleLogout} danger />
               </div>
             </>
           )}
@@ -124,14 +124,14 @@ export function Sidebar() {
           <div className="flex flex-col items-center justify-center h-40 text-gray-400
             animate-fadeIn">
             <span className="text-3xl mb-2">💬</span>
-            <p className="text-sm">{search ? 'No chats found' : 'No chats yet'}</p>
+            <p className="text-sm">{search ? 'Чаты не найдены' : 'Нет чатов'}</p>
             {!search && (
               <button
                 onClick={() => setShowNewChat(true)}
                 className="mt-3 text-sm text-primary-500 hover:text-primary-600
                   transition-colors font-medium"
               >
-                Start a conversation
+                Начать переписку
               </button>
             )}
           </div>

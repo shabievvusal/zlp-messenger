@@ -35,4 +35,10 @@ export const chatApi = {
     api.get<{ user_id: string; role: string; user?: { id: string; first_name: string; last_name?: string; avatar_url?: string } }[]>(
       `/chats/${chatId}/members`
     ),
+
+  forwardMessage: (targetChatId: string, msgId: string) =>
+    api.post<Message>(`/chats/${targetChatId}/messages`, {
+      type: 'text',
+      forward_from_id: msgId,
+    }),
 }

@@ -10,13 +10,13 @@ import { useChatCtx } from '@/contexts/ChatContext'
 interface Props {
   msg: Message
   isOwn: boolean
-  isGrouped: boolean  // same sender as previous, no avatar/name needed
+  isGrouped: boolean  // same sender as previous — no avatar/name needed
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉']
 
 export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
-  // Service messages (call summaries, etc.) — centered pill, no bubble
+  // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
     return (
       <div className="flex justify-center my-2 animate-fadeIn">
@@ -34,9 +34,14 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   const removeMessage = useChatStore((s) => s.removeMessage)
   const updateMessage = useChatStore((s) => s.updateMessage)
   const currentUser = useAuthStore((s) => s.user)
-  const { setReplyTo, setEditMsg, openMedia } = useChatCtx()
+  const {
+    setReplyTo, setEditMsg, openMedia, setForwardMsg,
+    selectedMsgIds, isSelecting, enterSelectMode, toggleSelect,
+  } = useChatCtx()
 
-  // Close menu on outside click
+  const isSelected = selectedMsgIds.includes(msg.id)
+
+  // Close context menu on outside click
   useEffect(() => {
     if (!menu) return
     const handler = (e: MouseEvent) => {
@@ -48,8 +53,11 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
 
   const openMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleBubbleClick = () => {
+    if (isSelecting) toggleSelect(msg.id)
   }
 
   const handleDelete = async () => {
@@ -80,6 +88,16 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
     setMenu(null)
   }
 
+  const handleSelect = () => {
+    setMenu(null)
+    enterSelectMode(msg.id)
+  }
+
+  const handleForward = () => {
+    setMenu(null)
+    setForwardMsg(msg)
+  }
+
   // Group reactions by emoji
   const reactionGroups = (msg.reactions ?? []).reduce<Record<string, { count: number; mine: boolean }>>((acc, r) => {
     if (!acc[r.emoji]) acc[r.emoji] = { count: 0, mine: false }
@@ -89,25 +107,53 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   }, {})
 
   return (
-    <div className={clsx(
-      'flex items-end gap-1.5 group animate-msgIn',
-      isOwn ? 'flex-row-reverse' : 'flex-row'
-    )}>
+    <div
+      className={clsx(
+        'flex items-end gap-1.5 group animate-msgIn',
+        isOwn ? 'flex-row-reverse' : 'flex-row',
+        isSelecting && 'cursor-pointer',
+        isSelected && (isOwn ? 'bg-primary-500/10' : 'bg-primary-500/10'),
+        'transition-colors rounded-lg px-1'
+      )}
+      onClick={handleBubbleClick}
+    >
+      {/* Selection checkbox */}
+      {isSelecting && (
+        <div className={clsx(
+          'flex-shrink-0 self-center',
+          isOwn ? 'order-last ml-1' : 'order-first mr-1'
+        )}>
+          <div className={clsx(
+            'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all',
+            isSelected
+              ? 'bg-primary-500 border-primary-500'
+              : 'border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800'
+          )}>
+            {isSelected && (
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Sender avatar for incoming messages */}
-      <div className="w-7 flex-shrink-0 self-end">
-        {!isOwn && !isGrouped && msg.sender && (
-          <div className="w-7 h-7 rounded-full bg-primary-400 flex items-center justify-center
-            text-white text-xs font-semibold select-none">
-            {msg.sender.first_name[0]?.toUpperCase()}
-          </div>
-        )}
-      </div>
+      {!isSelecting && (
+        <div className="w-7 flex-shrink-0 self-end">
+          {!isOwn && !isGrouped && msg.sender && (
+            <div className="w-7 h-7 rounded-full bg-primary-400 flex items-center justify-center
+              text-white text-xs font-semibold select-none">
+              {msg.sender.first_name[0]?.toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Bubble */}
       <div
         className={clsx('max-w-[70%] min-w-0', isGrouped ? (isOwn ? 'mr-8' : 'ml-8') : '')}
-        onContextMenu={openMenu}
+        onContextMenu={isSelecting ? undefined : openMenu}
       >
         {/* Reply preview */}
         {msg.reply_to && (
@@ -118,11 +164,18 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
               : 'border-blue-400 bg-blue-100/60 dark:bg-blue-900/30'
           )}>
             <p className="font-semibold text-primary-600 dark:text-primary-400 truncate">
-              {msg.reply_to.sender?.first_name ?? 'Message'}
+              {msg.reply_to.sender?.first_name ?? 'Сообщение'}
             </p>
             <p className="text-gray-600 dark:text-gray-400 truncate">
-              {msg.reply_to.text ?? '📎 Attachment'}
+              {msg.reply_to.text ?? '📎 Вложение'}
             </p>
+          </div>
+        )}
+
+        {/* Forward indicator */}
+        {msg.forward_from_id && (
+          <div className="mb-1 px-2 py-0.5 text-xs text-gray-400 italic flex items-center gap-1">
+            <span>⤵</span> Переслано
           </div>
         )}
 
@@ -145,7 +198,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           {/* Attachments */}
           {(msg.attachments ?? []).map((a) => (
             <div key={a.id} className="mt-1">
-              {(a.type === 'photo') && (
+              {a.type === 'photo' && (
                 <img
                   src={a.url}
                   alt=""
@@ -177,7 +230,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                   <span className="text-2xl">📄</span>
                   <div className="min-w-0">
                     <p className="font-medium truncate text-gray-900 dark:text-gray-100">
-                      {a.file_name ?? 'File'}
+                      {a.file_name ?? 'Файл'}
                     </p>
                     {a.file_size && (
                       <p className="text-xs text-gray-500">{formatSize(a.file_size)}</p>
@@ -189,12 +242,9 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           ))}
 
           {/* Meta row */}
-          <div className={clsx(
-            'flex items-center gap-1 mt-1 select-none',
-            isOwn ? 'justify-end' : 'justify-end'
-          )}>
+          <div className="flex items-center gap-1 mt-1 select-none justify-end">
             {msg.is_edited && (
-              <span className="text-[10px] text-gray-400 italic">edited</span>
+              <span className="text-[10px] text-gray-400 italic">изменено</span>
             )}
             <span className="text-[10px] text-gray-400">
               {format(new Date(msg.created_at), 'HH:mm')}
@@ -211,7 +261,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
             {Object.entries(reactionGroups).map(([emoji, { count, mine }]) => (
               <button
                 key={emoji}
-                onClick={() => handleReact(emoji)}
+                onClick={(e) => { e.stopPropagation(); handleReact(emoji) }}
                 className={clsx(
                   'text-xs rounded-full px-2 py-0.5 transition',
                   mine
@@ -225,16 +275,18 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           </div>
         )}
 
-        {/* Quick action buttons (visible on hover) */}
-        <div className={clsx(
-          'flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
-          isOwn ? 'justify-end' : 'justify-start'
-        )}>
-          <QuickBtn title="Reply" onClick={() => setReplyTo(msg)}>↩</QuickBtn>
-          <QuickBtn title="React" onClick={(e) => openMenu(e)}>😊</QuickBtn>
-          {isOwn && <QuickBtn title="Edit" onClick={() => setEditMsg(msg)}>✏️</QuickBtn>}
-          <QuickBtn title="More" onClick={(e) => openMenu(e)}>⋯</QuickBtn>
-        </div>
+        {/* Quick action buttons (visible on hover, hidden in select mode) */}
+        {!isSelecting && (
+          <div className={clsx(
+            'flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
+            isOwn ? 'justify-end' : 'justify-start'
+          )}>
+            <QuickBtn title="Ответить" onClick={() => setReplyTo(msg)}>↩</QuickBtn>
+            <QuickBtn title="Реакция" onClick={(e) => { e.stopPropagation(); openMenu(e) }}>😊</QuickBtn>
+            {isOwn && <QuickBtn title="Редактировать" onClick={() => setEditMsg(msg)}>✏️</QuickBtn>}
+            <QuickBtn title="Ещё" onClick={(e) => { e.stopPropagation(); openMenu(e) }}>⋯</QuickBtn>
+          </div>
+        )}
       </div>
 
       {/* Context menu */}
@@ -242,7 +294,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
         <div
           ref={menuRef}
           className="ctx-menu"
-          style={{ top: Math.min(menu.y, window.innerHeight - 320), left: Math.min(menu.x, window.innerWidth - 220) }}
+          style={{ top: Math.min(menu.y, window.innerHeight - 340), left: Math.min(menu.x, window.innerWidth - 220) }}
         >
           {/* Emoji row */}
           <div className="flex gap-1 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
@@ -254,12 +306,13 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
             ))}
           </div>
 
-          <MenuItem icon="↩" label="Reply" onClick={() => { setReplyTo(msg); setMenu(null) }} />
-          <MenuItem icon="⤵" label="Forward" onClick={() => setMenu(null)} />
-          {msg.text && <MenuItem icon="📋" label="Copy Text" onClick={handleCopyText} />}
-          {isOwn && <MenuItem icon="✏️" label="Edit" onClick={() => { setEditMsg(msg); setMenu(null) }} />}
+          <MenuItem icon="↩" label="Ответить" onClick={() => { setReplyTo(msg); setMenu(null) }} />
+          <MenuItem icon="⤵" label="Переслать" onClick={handleForward} />
+          <MenuItem icon="☑️" label="Выбрать" onClick={handleSelect} />
+          {msg.text && <MenuItem icon="📋" label="Копировать текст" onClick={handleCopyText} />}
+          {isOwn && <MenuItem icon="✏️" label="Редактировать" onClick={() => { setEditMsg(msg); setMenu(null) }} />}
           <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
-          {isOwn && <MenuItem icon="🗑" label="Delete" onClick={handleDelete} danger />}
+          {isOwn && <MenuItem icon="🗑" label="Удалить" onClick={handleDelete} danger />}
         </div>
       )}
     </div>
@@ -301,7 +354,7 @@ function MenuItem({ icon, label, onClick, danger }: {
 }
 
 function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  if (bytes < 1024) return `${bytes} Б`
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} КБ`
+  return `${(bytes / 1024 ** 2).toFixed(1)} МБ`
 }

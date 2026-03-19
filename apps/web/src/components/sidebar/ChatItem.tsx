@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
+import { ru } from 'date-fns/locale'
 import { clsx } from 'clsx'
 import type { Chat } from '@/types'
 import { Avatar } from '@/components/ui/Avatar'
@@ -15,7 +16,7 @@ export function ChatItem({ chat, active, onClick }: Props) {
 
   const preview = lastMsg?.type === 'service'
     ? lastMsg.text
-    : lastMsg?.text || (lastMsg?.attachments?.length ? '📎 Attachment' : '')
+    : lastMsg?.text || (lastMsg?.attachments?.length ? '📎 Вложение' : '')
 
   return (
     <button
@@ -53,7 +54,7 @@ export function ChatItem({ chat, active, onClick }: Props) {
           </span>
           {lastMsg && (
             <span className="text-[11px] text-gray-400 dark:text-gray-500 flex-shrink-0">
-              {formatDistanceToNow(new Date(lastMsg.created_at), { addSuffix: false })}
+              {formatDistanceToNow(new Date(lastMsg.created_at), { addSuffix: false, locale: ru })}
             </span>
           )}
         </div>

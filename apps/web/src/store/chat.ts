@@ -57,12 +57,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })),
 
   addMessage: (msg) =>
-    set((state) => ({
-      messages: {
-        ...state.messages,
-        [msg.chat_id]: [...(state.messages[msg.chat_id] ?? []), msg],
-      },
-    })),
+    set((state) => {
+      const existing = state.messages[msg.chat_id] ?? []
+      // Deduplicate by id — prevents double-add when WS and local both fire
+      if (existing.some((m) => m.id === msg.id)) return state
+      return {
+        messages: {
+          ...state.messages,
+          [msg.chat_id]: [...existing, msg],
+        },
+      }
+    }),
 
   updateMessage: (msg) =>
     set((state) => ({

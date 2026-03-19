@@ -77,16 +77,18 @@ export function MessageInput({ chatId }: Props) {
         updateMessage({ ...editMsg, text: trimmed, is_edited: true })
         setEditMsg(null)
       } else {
+        const currentReplyTo = replyTo
         const { data } = await chatApi.sendMessage(chatId, {
           text: trimmed,
           type: 'text',
-          reply_to_id: replyTo?.id,
+          reply_to_id: currentReplyTo?.id,
         })
-        addMessage({ ...data, sender: user ?? undefined })
+        // Attach reply_to locally (server may not embed it in response)
+        addMessage({ ...data, sender: user ?? undefined, reply_to: currentReplyTo ?? undefined })
         setReplyTo(null)
       }
     } catch {
-      toast.error('Failed to send')
+      toast.error('Не удалось отправить сообщение')
       setText(trimmed)
     } finally {
       setSending(false)
@@ -113,10 +115,11 @@ export function MessageInput({ chatId }: Props) {
 
   // File upload
   const uploadFile = async (file: File) => {
+    const currentReplyTo = replyTo
     const formData = new FormData()
     formData.append('file', file)
     formData.append('chat_id', chatId)
-    if (replyTo) formData.append('reply_to_id', replyTo.id)
+    if (currentReplyTo) formData.append('reply_to_id', currentReplyTo.id)
 
     try {
       const token = useAuthStore.getState().accessToken
@@ -125,12 +128,19 @@ export function MessageInput({ chatId }: Props) {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error ?? 'Upload failed')
+      }
       const data = await res.json()
-      if (data.message) addMessage({ ...data.message, sender: user ?? undefined })
-      setReplyTo(null)
-    } catch {
-      toast.error('Upload failed')
+      // Backend may return { message: ... } or the message directly
+      const msg = data.message ?? data
+      if (msg?.id) {
+        addMessage({ ...msg, sender: user ?? undefined, reply_to: currentReplyTo ?? undefined })
+        setReplyTo(null)
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Ошибка загрузки файла')
     }
   }
 
@@ -153,14 +163,18 @@ export function MessageInput({ chatId }: Props) {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
+      // Pick MIME type supported by the browser (Safari needs mp4, others prefer webm/ogg)
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+        .find((t) => MediaRecorder.isTypeSupported(t)) ?? ''
+      const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
       recorderRef.current = recorder
       recChunksRef.current = []
       recorder.ondataavailable = (e) => recChunksRef.current.push(e.data)
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop())
-        const blob = new Blob(recChunksRef.current, { type: 'audio/ogg; codecs=opus' })
-        const file = new File([blob], `voice_${Date.now()}.ogg`, { type: 'audio/ogg' })
+        const blob = new Blob(recChunksRef.current, { type: mimeType || 'audio/webm' })
+        const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mimeType || 'audio/webm' })
         await uploadFile(file)
       }
       recorder.start()
@@ -168,7 +182,7 @@ export function MessageInput({ chatId }: Props) {
       setRecordSeconds(0)
       recTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
     } catch {
-      toast.error('Microphone access denied')
+      toast.error('Нет доступа к микрофону')
     }
   }
 
@@ -218,13 +232,13 @@ export function MessageInput({ chatId }: Props) {
             <button onClick={cancelRecording} className="text-gray-400 hover:text-red-500 transition">✕</button>
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             <span className="text-red-500 font-mono text-sm">{fmtSeconds(recordSeconds)}</span>
-            <span className="flex-1 text-xs text-gray-500">Recording voice message...</span>
+            <span className="flex-1 text-xs text-gray-500">Запись голосового сообщения...</span>
           </div>
         ) : (
           <>
             {/* Attach */}
             <button onClick={() => fileRef.current?.click()}
-              className="icon-btn" title="Attach file">
+              className="icon-btn" title="Прикрепить файл">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -242,7 +256,7 @@ export function MessageInput({ chatId }: Props) {
                 value={text}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
-                placeholder={editMsg ? 'Edit message...' : 'Write a message...'}
+                placeholder={editMsg ? 'Редактирование...' : 'Написать сообщение...'}
                 rows={1}
                 className="flex-1 bg-transparent resize-none text-sm
                   text-gray-900 dark:text-gray-100 placeholder-gray-400
@@ -297,7 +311,7 @@ export function MessageInput({ chatId }: Props) {
           <button
             onMouseDown={startRecording}
             onTouchStart={startRecording}
-            title="Hold to record voice"
+            title="Удержите для записи голоса"
             className="icon-btn flex-shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
