@@ -139,7 +139,7 @@ export function MessageList({ chatId, chatType, onLoadMore }: Props) {
               {showDate && (
                 <DateDivider date={format(new Date(msg.created_at), 'd MMMM yyyy', { locale: ru })} />
               )}
-              <div className={isGrouped ? 'mt-px' : 'mt-1.5'}>
+              <div className={isGrouped ? 'mt-px' : 'mt-1'}>
                 <MessageBubble
                   msg={msg}
                   isOwn={isOwn}

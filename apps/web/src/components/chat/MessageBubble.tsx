@@ -141,7 +141,7 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
   return (
     <div
       className={clsx(
-        'flex flex-row items-end gap-1.5 group animate-msgIn',
+        'flex flex-row items-end gap-1 group animate-msgIn',
         isSelecting && 'cursor-pointer',
         isSelected && 'bg-primary-500/10',
         'transition-colors rounded-lg px-1'
@@ -210,7 +210,7 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
           </div>
         )}
 
-        <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in', hasMedia && 'px-2 py-1.5')}>
+        <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in', bubbleShape(isGrouped, isLastInGroup), hasMedia && 'px-2 py-1.5')}>
 
           {/* Sender name (groups/channels only, for incoming non-grouped) */}
           {!isOwn && !isGrouped && (chatType === 'group' || chatType === 'channel') && msg.sender && (
