@@ -112,7 +112,10 @@ services:
     network_mode: host   # TURN needs direct access to network interfaces
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-    command: -c /etc/coturn/turnserver.conf
+    # external-ip подставляется из .env (SERVER_IP=82.25.12.165)
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --external-ip=${SERVER_IP}
 
   # ── Reverse proxy ────────────────────────────────────────────
 
