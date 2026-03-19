@@ -14,6 +14,13 @@ const (
 	EventWebRTCOffer    = "webrtc_offer"
 	EventWebRTCAnswer   = "webrtc_answer"
 	EventWebRTCICE      = "webrtc_ice"
+
+	// Group calls
+	EventGroupCallJoin    = "group_call_join"    // вступить/начать групповой звонок
+	EventGroupCallLeave   = "group_call_leave"   // покинуть
+	EventGroupWebRTCOffer  = "group_webrtc_offer"
+	EventGroupWebRTCAnswer = "group_webrtc_answer"
+	EventGroupWebRTCICE    = "group_webrtc_ice"
 )
 
 // Server → Client
@@ -34,6 +41,13 @@ const (
 	EventCallWebRTC     = "call_webrtc"     // WebRTC сигналинг
 	EventError          = "error"
 	EventMention        = "mention"         // упоминание @username
+
+	// Group calls
+	EventGroupCallJoined       = "group_call_joined"        // ты вошёл + список участников
+	EventGroupCallMemberJoined = "group_call_member_joined" // кто-то вошёл
+	EventGroupCallMemberLeft   = "group_call_member_left"   // кто-то ушёл
+	EventGroupCallEnded        = "group_call_ended"         // звонок завершён
+	EventGroupCallWebRTC       = "group_call_webrtc"        // WebRTC сигналинг
 )
 
 type IncomingEvent struct {

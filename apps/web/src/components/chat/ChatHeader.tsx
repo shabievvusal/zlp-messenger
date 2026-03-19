@@ -2,21 +2,27 @@ import { useState, useRef, useEffect } from 'react'
 import type { Chat, Message } from '@/types'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
+import { useGroupCallStore } from '@/store/groupCall'
 import { Avatar } from '@/components/ui/Avatar'
 import { chatApi } from '@/api/chat'
 import { useChatCtx } from '@/contexts/ChatContext'
+import { GroupCallBanner } from '@/components/call/GroupCallBanner'
 
 interface Props {
   chat: Chat
   onStartCall: (type: 'voice' | 'video') => void
+  onStartGroupCall?: () => void
+  onJoinGroupCall?: () => void
   onOpenProfile?: () => void
 }
 
-export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
+export function ChatHeader({ chat, onStartCall, onStartGroupCall, onJoinGroupCall, onOpenProfile }: Props) {
   const typing = useChatStore((s) => s.typing[chat.id] ?? [])
   const typingCount = typing.length
   const activeCall = useCallStore((s) => s.active)
-  const inCall = activeCall !== null
+  const activeGroupCall = useGroupCallStore((s) => s.active)
+  const liveGroupCall = useGroupCallStore((s) => s.liveCalls[chat.id])
+  const inCall = activeCall !== null || activeGroupCall !== null
   const { setHighlightMsgId } = useChatCtx()
 
   const [showSearch, setShowSearch] = useState(false)
@@ -96,6 +102,19 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
             </IconBtn>
           )}
 
+          {/* Групповой звонок */}
+          {!isPrivate && onStartGroupCall && (
+            <IconBtn
+              title={inCall ? 'Уже в звонке' : liveGroupCall ? 'Присоединиться к звонку' : 'Групповой звонок'}
+              disabled={inCall}
+              active={!!liveGroupCall}
+              onClick={liveGroupCall && onJoinGroupCall ? onJoinGroupCall : onStartGroupCall}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </IconBtn>
+          )}
+
           {/* Поиск по сообщениям */}
           <IconBtn
             title="Поиск в чате"
@@ -115,6 +134,11 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
           )}
         </div>
       </div>
+
+      {/* Групповой звонок — баннер */}
+      {!isPrivate && liveGroupCall && activeGroupCall?.chatId !== chat.id && onJoinGroupCall && (
+        <GroupCallBanner chatId={chat.id} onJoin={onJoinGroupCall} />
+      )}
 
       {/* Строка поиска */}
       {showSearch && (

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
+import { useGroupCallStore } from '@/store/groupCall'
 import { canNotify } from './useNotificationPermission'
 import type { WSEvent, Message } from '@/types'
 
@@ -40,6 +41,20 @@ let _bufferedOffer: { subType: string; from: string; data: unknown; callId: stri
 export function getBufferedOffer() { return _bufferedOffer }
 export function clearBufferedOffer() { _bufferedOffer = null }
 
+// Group call WebRTC signaling handler
+export type GroupWebRTCHandler = (subType: string, from: string, data: unknown, callId: string) => void
+let _groupWebRTCHandler: GroupWebRTCHandler | null = null
+export function registerGroupWebRTCHandler(fn: GroupWebRTCHandler | null) { _groupWebRTCHandler = fn }
+
+// Called when server confirms we joined a group call and sends us existing participants
+export type GroupJoinedHandler = (participants: { userId: string; userName: string }[]) => void
+const _groupJoinedHandlers = new Map<string, GroupJoinedHandler>()
+export { _groupJoinedHandlers }
+
+// Called when a group call member disconnects — to close their PC
+let _groupMemberLeftHandler: ((userId: string) => void) | null = null
+export function registerGroupMemberLeftHandler(fn: ((userId: string) => void) | null) { _groupMemberLeftHandler = fn }
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
@@ -59,6 +74,10 @@ export function useWebSocket() {
   const setIncoming = useCallStore((s) => s.setIncoming)
   const updateActive = useCallStore((s) => s.updateActive)
   const clearAll = useCallStore((s) => s.clearAll)
+
+  const liveCallMemberJoined = useGroupCallStore((s) => s.liveCallMemberJoined)
+  const liveCallMemberLeft = useGroupCallStore((s) => s.liveCallMemberLeft)
+  const removeLiveCall = useGroupCallStore((s) => s.removeLiveCall)
 
   // Keep activeChatId in ref so event handler always sees latest value
   const activeChatIdRef = useRef(activeChatId)
@@ -167,6 +186,40 @@ export function useWebSocket() {
         _webRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
         break
       }
+      case 'group_call_joined': {
+        // Server confirmed we joined; call_id + list of existing participants
+        const p = event.payload as {
+          call_id: string
+          participants: { user_id: string; user_name: string }[]
+        }
+        const handler = _groupJoinedHandlers.get(p.call_id)
+        if (handler) {
+          _groupJoinedHandlers.delete(p.call_id)
+          handler(p.participants.map((x) => ({ userId: x.user_id, userName: x.user_name })))
+        }
+        break
+      }
+      case 'group_call_member_joined': {
+        const p = event.payload as { call_id: string; chat_id: string; user_id: string; user_name: string }
+        liveCallMemberJoined(p.chat_id, p.call_id, p.user_id, p.user_name)
+        break
+      }
+      case 'group_call_member_left': {
+        const p = event.payload as { chat_id: string; user_id: string }
+        liveCallMemberLeft(p.chat_id, p.user_id)
+        _groupMemberLeftHandler?.(p.user_id)
+        break
+      }
+      case 'group_call_ended': {
+        const p = event.payload as { chat_id: string }
+        removeLiveCall(p.chat_id)
+        break
+      }
+      case 'group_call_webrtc': {
+        const p = event.payload as { sub_type: string; from: string; data: unknown; call_id: string }
+        _groupWebRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
+        break
+      }
       case 'mention': {
         const p = event.payload as { chat_id: string; message_id: string }
         incrementMention(p.chat_id)
@@ -179,7 +232,8 @@ export function useWebSocket() {
       }
     }
   }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline,
-      incrementUnread, incrementMention, markMessageRead, setIncoming, updateActive, clearAll])
+      incrementUnread, incrementMention, markMessageRead, setIncoming, updateActive, clearAll,
+      liveCallMemberJoined, liveCallMemberLeft, removeLiveCall])
 
   const connect = useCallback(() => {
     if (!isAuthenticated || !accessToken) return

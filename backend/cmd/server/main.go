@@ -131,6 +131,7 @@ func main() {
 	protected.Get("/chats/:chatID/messages/search", chatHandler.SearchMessages)
 	protected.Patch("/chats/:chatID/mute", chatHandler.MuteChat)
 	protected.Get("/chats/:chatID/media", chatHandler.GetSharedMedia)
+	protected.Get("/chats/:chatID/call", wsHandler.GetGroupCallState)
 
 	protected.Patch("/messages/:msgID", chatHandler.EditMessage)
 	protected.Delete("/messages/:msgID", chatHandler.DeleteMessage)

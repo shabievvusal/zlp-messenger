@@ -21,6 +21,18 @@ type callMeta struct {
 	AcceptedAt  int64  `json:"accepted_at"` // 0 if not yet accepted
 }
 
+type groupParticipant struct {
+	UserID   string `json:"user_id"`
+	UserName string `json:"user_name"`
+}
+
+type groupCallMeta struct {
+	CallID       string             `json:"call_id"`
+	ChatID       string             `json:"chat_id"`
+	Participants []groupParticipant `json:"participants"`
+	StartedAt    int64              `json:"started_at"`
+}
+
 type Hub struct {
 	mu          sync.RWMutex
 	clients     map[uuid.UUID]*Client
@@ -275,6 +287,136 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		}
 		h.SendToUser(targetID, OutgoingEvent{
 			Type: EventCallWebRTC,
+			Payload: map[string]any{
+				"sub_type": event.Type,
+				"from":     c.UserID,
+				"data":     event.Payload["data"],
+				"call_id":  event.Payload["call_id"],
+			},
+		})
+
+	// ── GROUP CALLS ────────────────────────────────────────────
+
+	case EventGroupCallJoin:
+		chatID := parseUUID(event.Payload, "chat_id")
+		if chatID == uuid.Nil {
+			return
+		}
+		callID, _ := event.Payload["call_id"].(string)
+		userName, _ := event.Payload["user_name"].(string)
+
+		ctx := context.Background()
+		key := "group_call:" + chatID.String()
+
+		var meta groupCallMeta
+		if raw, err := h.redis.Get(ctx, key).Bytes(); err == nil {
+			json.Unmarshal(raw, &meta)
+		} else {
+			// New call
+			if callID == "" {
+				callID = uuid.New().String()
+			}
+			meta = groupCallMeta{
+				CallID:    callID,
+				ChatID:    chatID.String(),
+				StartedAt: time.Now().Unix(),
+			}
+		}
+
+		// Remove stale entry for this user (reconnect case)
+		filtered := meta.Participants[:0]
+		for _, p := range meta.Participants {
+			if p.UserID != c.UserID.String() {
+				filtered = append(filtered, p)
+			}
+		}
+		existing := make([]groupParticipant, len(filtered))
+		copy(existing, filtered)
+
+		// Inform the joining user of existing participants BEFORE adding self
+		h.SendToUser(c.UserID, OutgoingEvent{
+			Type: EventGroupCallJoined,
+			Payload: map[string]any{
+				"call_id":      meta.CallID,
+				"chat_id":      chatID,
+				"participants": existing,
+			},
+		})
+
+		// Add self
+		meta.Participants = append(existing, groupParticipant{
+			UserID:   c.UserID.String(),
+			UserName: userName,
+		})
+		if data, err := json.Marshal(meta); err == nil {
+			h.redis.Set(ctx, key, data, 4*time.Hour)
+		}
+
+		// Notify all chat members (for the join banner)
+		h.BroadcastToChat(chatID, OutgoingEvent{
+			Type: EventGroupCallMemberJoined,
+			Payload: map[string]any{
+				"call_id":   meta.CallID,
+				"chat_id":   chatID,
+				"user_id":   c.UserID,
+				"user_name": userName,
+			},
+		}, nil)
+
+	case EventGroupCallLeave:
+		chatID := parseUUID(event.Payload, "chat_id")
+		callID, _ := event.Payload["call_id"].(string)
+		if chatID == uuid.Nil {
+			return
+		}
+		ctx := context.Background()
+		key := "group_call:" + chatID.String()
+
+		var meta groupCallMeta
+		if raw, err := h.redis.Get(ctx, key).Bytes(); err == nil {
+			json.Unmarshal(raw, &meta)
+		}
+
+		// Remove participant
+		remaining := meta.Participants[:0]
+		for _, p := range meta.Participants {
+			if p.UserID != c.UserID.String() {
+				remaining = append(remaining, p)
+			}
+		}
+		meta.Participants = remaining
+
+		// Broadcast member_left to all in chat
+		h.BroadcastToChat(chatID, OutgoingEvent{
+			Type: EventGroupCallMemberLeft,
+			Payload: map[string]any{
+				"call_id": callID,
+				"chat_id": chatID,
+				"user_id": c.UserID,
+			},
+		}, nil)
+
+		if len(remaining) == 0 {
+			h.redis.Del(ctx, key)
+			h.BroadcastToChat(chatID, OutgoingEvent{
+				Type: EventGroupCallEnded,
+				Payload: map[string]any{"call_id": callID, "chat_id": chatID},
+			}, nil)
+		} else {
+			if data, err := json.Marshal(meta); err == nil {
+				h.redis.Set(ctx, key, data, 4*time.Hour)
+			}
+		}
+
+	// ── GROUP WebRTC SIGNALING ──────────────────────────────────
+
+	case EventGroupWebRTCOffer, EventGroupWebRTCAnswer, EventGroupWebRTCICE:
+		targetID := parseUUID(event.Payload, "target_user_id")
+		if targetID == uuid.Nil {
+			return
+		}
+		h.SendToUser(targetID, OutgoingEvent{
+			Type: EventGroupCallWebRTC,
 			Payload: map[string]any{
 				"sub_type": event.Type,
 				"from":     c.UserID,

@@ -6,17 +6,24 @@ import { EmptyChat } from '@/components/chat/EmptyChat'
 import { IncomingCallModal } from '@/components/call/IncomingCallModal'
 import { ActiveCallScreen } from '@/components/call/ActiveCallScreen'
 import { MinimizedCallBar } from '@/components/call/MinimizedCallBar'
+import { GroupCallScreen } from '@/components/call/GroupCallScreen'
+import { GroupCallMinimizedBar } from '@/components/call/GroupCallMinimizedBar'
 import {
   useWebSocket,
   registerWebRTCHandler,
   registerCallAcceptedHandler,
   registerRemoteCallEndedHandler,
+  registerGroupWebRTCHandler,
+  registerGroupMemberLeftHandler,
+  _groupJoinedHandlers,
   getBufferedOffer,
   clearBufferedOffer,
 } from '@/hooks/useWebSocket'
 import { useWebRTC, getLocalStream } from '@/hooks/useWebRTC'
+import { useGroupWebRTC } from '@/hooks/useGroupWebRTC'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
+import { useGroupCallStore } from '@/store/groupCall'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
 import { generateId } from '@/utils/uuid'
@@ -26,7 +33,7 @@ export function MessengerPage() {
   const currentUser = useAuthStore((s) => s.user)
   const { send } = useWebSocket()
   const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer, closePeerConnection } = useWebRTC(send)
-
+  const { joinAndOffer, handleOffer: groupHandleOffer, handleAnswer: groupHandleAnswer, handleIce: groupHandleIce, participantLeft, leave: groupLeave, callIdRef: groupCallIdRef } = useGroupWebRTC(send)
 
   const incoming = useCallStore((s) => s.incoming)
   const active = useCallStore((s) => s.active)
@@ -34,6 +41,13 @@ export function MessengerPage() {
   const setActive = useCallStore((s) => s.setActive)
   const updateActive = useCallStore((s) => s.updateActive)
   const clearAll = useCallStore((s) => s.clearAll)
+
+  const groupActive = useGroupCallStore((s) => s.active)
+  const groupJoinCall = useGroupCallStore((s) => s.joinCall)
+  const groupSetMuted = useGroupCallStore((s) => s.setMuted)
+  const groupSetVideoOff = useGroupCallStore((s) => s.setVideoOff)
+  const groupSetMinimized = useGroupCallStore((s) => s.setMinimized)
+  const removeLiveCall = useGroupCallStore((s) => s.removeLiveCall)
 
   const [isCallMinimized, setIsCallMinimized] = useState(false)
 
@@ -64,6 +78,109 @@ export function MessengerPage() {
     })
     return () => registerRemoteCallEndedHandler(null)
   }, [closePeerConnection])
+
+  // Group call: member left → close peer connection
+  useEffect(() => {
+    registerGroupMemberLeftHandler((userId) => participantLeft(userId))
+    return () => registerGroupMemberLeftHandler(null)
+  }, [participantLeft])
+
+  // Group call WebRTC signaling
+  useEffect(() => {
+    registerGroupWebRTCHandler(async (subType, from, data, _callId) => {
+      const localStream = useGroupCallStore.getState().active?.localStream
+      if (!localStream) return
+      // Find the participant name for this user (from liveCall state)
+      const liveCallEntries = useGroupCallStore.getState().liveCalls
+      let fromName = from
+      for (const lc of Object.values(liveCallEntries)) {
+        const p = lc.participants.find((x) => x.userId === from)
+        if (p) { fromName = p.userName; break }
+      }
+      if (subType === 'group_webrtc_offer') {
+        await groupHandleOffer(from, fromName, data as RTCSessionDescriptionInit, localStream)
+      } else if (subType === 'group_webrtc_answer') {
+        await groupHandleAnswer(from, data as RTCSessionDescriptionInit)
+      } else if (subType === 'group_webrtc_ice') {
+        await groupHandleIce(from, data as RTCIceCandidateInit)
+      }
+    })
+    return () => registerGroupWebRTCHandler(null)
+  }, [groupHandleOffer, groupHandleAnswer, groupHandleIce])
+
+  // ── Групповой звонок ────────────────────────────────────────
+  const handleStartGroupCall = useCallback(async (chatId: string) => {
+    const callId = generateId()
+    const userName = currentUser
+      ? `${currentUser.first_name}${currentUser.last_name ? ' ' + currentUser.last_name : ''}`
+      : 'Unknown'
+
+    let stream: MediaStream
+    try {
+      stream = await getLocalStream('voice')
+    } catch (err: any) {
+      alert(`Ошибка доступа к микрофону: ${err?.message ?? err}`)
+      return
+    }
+
+    groupJoinCall(callId, chatId, stream)
+
+    // Tell server we joined; it returns current participants via group_call_joined
+    send('group_call_join', { chat_id: chatId, call_id: callId, user_name: userName })
+
+    // group_call_joined arrives via WebSocket → triggers joinAndOffer
+    // We register a one-time handler for it
+    const onJoined = async (existingParticipants: { userId: string; userName: string }[]) => {
+      await joinAndOffer(callId, existingParticipants, stream)
+    }
+    _groupJoinedHandlers.set(callId, onJoined)
+  }, [send, currentUser, groupJoinCall, joinAndOffer])
+
+  const handleJoinGroupCall = useCallback(async (chatId: string, callId: string) => {
+    const userName = currentUser
+      ? `${currentUser.first_name}${currentUser.last_name ? ' ' + currentUser.last_name : ''}`
+      : 'Unknown'
+
+    let stream: MediaStream
+    try {
+      stream = await getLocalStream('voice')
+    } catch (err: any) {
+      alert(`Ошибка доступа к микрофону: ${err?.message ?? err}`)
+      return
+    }
+
+    groupJoinCall(callId, chatId, stream)
+    send('group_call_join', { chat_id: chatId, call_id: callId, user_name: userName })
+
+    const onJoined = async (existingParticipants: { userId: string; userName: string }[]) => {
+      await joinAndOffer(callId, existingParticipants, stream)
+    }
+    _groupJoinedHandlers.set(callId, onJoined)
+  }, [send, currentUser, groupJoinCall, joinAndOffer])
+
+  const handleLeaveGroupCall = useCallback(() => {
+    const state = useGroupCallStore.getState().active
+    if (!state) return
+    send('group_call_leave', { chat_id: state.chatId, call_id: state.callId })
+    groupLeave()
+    removeLiveCall(state.chatId)
+  }, [send, groupLeave, removeLiveCall])
+
+  const handleGroupToggleMute = useCallback(() => {
+    const state = useGroupCallStore.getState().active
+    if (!state?.localStream) return
+    const next = !state.isMuted
+    state.localStream.getAudioTracks().forEach((t) => { t.enabled = !next })
+    groupSetMuted(next)
+  }, [groupSetMuted])
+
+  const handleGroupToggleVideo = useCallback(() => {
+    const state = useGroupCallStore.getState().active
+    if (!state?.localStream) return
+    const next = !state.isVideoOff
+    state.localStream.getVideoTracks().forEach((t) => { t.enabled = !next })
+    groupSetVideoOff(next)
+  }, [groupSetVideoOff])
 
   // ── Исходящий звонок ────────────────────────────────────────
   const handleStartCall = useCallback(async (targetId: string, targetName: string, type: 'voice' | 'video') => {
@@ -198,7 +315,13 @@ export function MessengerPage() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <Routes>
           <Route path="/" element={<EmptyChat />} />
-          <Route path="chat/:chatId" element={<ChatWindow onStartCall={handleStartCall} />} />
+          <Route path="chat/:chatId" element={
+            <ChatWindow
+              onStartCall={handleStartCall}
+              onStartGroupCall={handleStartGroupCall}
+              onJoinGroupCall={handleJoinGroupCall}
+            />
+          } />
         </Routes>
       </main>
 
@@ -218,6 +341,23 @@ export function MessengerPage() {
           onHangup={handleHangup}
           onToggleMute={toggleMute}
           onExpand={() => setIsCallMinimized(false)}
+        />
+      )}
+
+      {/* Group call UI */}
+      {groupActive && !groupActive.isMinimized && (
+        <GroupCallScreen
+          onLeave={handleLeaveGroupCall}
+          onToggleMute={handleGroupToggleMute}
+          onToggleVideo={handleGroupToggleVideo}
+          onMinimize={() => groupSetMinimized(true)}
+        />
+      )}
+      {groupActive && groupActive.isMinimized && (
+        <GroupCallMinimizedBar
+          onLeave={handleLeaveGroupCall}
+          onToggleMute={handleGroupToggleMute}
+          onExpand={() => groupSetMinimized(false)}
         />
       )}
     </div>

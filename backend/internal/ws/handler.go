@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
@@ -59,4 +60,28 @@ func (h *Handler) subscribeUserChats(client *Client) {
 	for _, chat := range chats {
 		h.hub.SubscribeClientToChat(client.UserID, chat.ID)
 	}
+}
+
+// GET /api/chats/:chatID/call — returns current group call state (if any)
+func (h *Handler) GetGroupCallState(c *fiber.Ctx) error {
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	key := "group_call:" + chatID.String()
+	raw, err := h.hub.redis.Get(context.Background(), key).Bytes()
+	if err != nil {
+		// No active call
+		return c.JSON(map[string]any{"active": false})
+	}
+	var meta groupCallMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return c.JSON(map[string]any{"active": false})
+	}
+	return c.JSON(map[string]any{
+		"active":       true,
+		"call_id":      meta.CallID,
+		"participants": meta.Participants,
+		"started_at":   meta.StartedAt,
+	})
 }

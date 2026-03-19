@@ -10,24 +10,27 @@ import { MediaViewer } from './MediaViewer'
 import { ChatInfoPanel } from './ChatInfoPanel'
 import { ForwardModal } from './ForwardModal'
 import { ChatProvider, useChatCtx } from '@/contexts/ChatContext'
+import { useGroupCallStore } from '@/store/groupCall'
 import type { Message } from '@/types'
 
 const PAGE_SIZE = 50
 
 interface Props {
   onStartCall?: (targetId: string, targetName: string, type: 'voice' | 'video') => void
+  onStartGroupCall?: (chatId: string) => void
+  onJoinGroupCall?: (chatId: string, callId: string) => void
 }
 
-export function ChatWindow({ onStartCall }: Props) {
+export function ChatWindow({ onStartCall, onStartGroupCall, onJoinGroupCall }: Props) {
   return (
     <ChatProvider>
-      <ChatWindowInner onStartCall={onStartCall} />
+      <ChatWindowInner onStartCall={onStartCall} onStartGroupCall={onStartGroupCall} onJoinGroupCall={onJoinGroupCall} />
       <MediaViewer />
     </ChatProvider>
   )
 }
 
-function ChatWindowInner({ onStartCall }: Props) {
+function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Props) {
   const { chatId } = useParams<{ chatId: string }>()
   const { setMessages, prependMessages, clearUnread, chats } = useChatStore()
   const currentUser = useAuthStore((s) => s.user)
@@ -37,6 +40,7 @@ function ChatWindowInner({ onStartCall }: Props) {
   const [hasMore, setHasMore] = useState(true)
   const loadingMore = useRef(false)
   const [showProfile, setShowProfile] = useState(false)
+  const liveGroupCall = useGroupCallStore((s) => chat ? s.liveCalls[chat.id] : undefined)
 
   const {
     selectedMsgIds, isSelecting, clearSelection,
@@ -118,6 +122,10 @@ function ChatWindowInner({ onStartCall }: Props) {
       <ChatHeader
         chat={chat}
         onStartCall={handleStartCall}
+        onStartGroupCall={onStartGroupCall ? () => onStartGroupCall(chat.id) : undefined}
+        onJoinGroupCall={onJoinGroupCall && liveGroupCall
+          ? () => onJoinGroupCall(chat.id, liveGroupCall.callId)
+          : undefined}
         onOpenProfile={() => setShowProfile(true)}
       />
       <MessageList chatId={chatId} chatType={chat.type} onLoadMore={handleLoadMore} />
