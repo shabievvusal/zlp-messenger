@@ -20,6 +20,15 @@ export function registerWebRTCHandler(fn: WebRTCHandler | null) {
   _webRTCHandler = fn
 }
 
+// Caller side: triggered when callee accepts
+let _onCallAccepted: (() => Promise<void>) | null = null
+export function registerCallAcceptedHandler(fn: (() => Promise<void>) | null) { _onCallAccepted = fn }
+
+// Buffer offer in case it arrives before callee accepts
+let _bufferedOffer: { subType: string; from: string; data: unknown; callId: string } | null = null
+export function getBufferedOffer() { return _bufferedOffer }
+export function clearBufferedOffer() { _bufferedOffer = null }
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
@@ -98,6 +107,7 @@ export function useWebSocket() {
       }
       case 'call_accepted': {
         updateActive({ status: 'connecting' })
+        _onCallAccepted?.()
         break
       }
       case 'call_declined': {
@@ -111,6 +121,9 @@ export function useWebSocket() {
       case 'call_webrtc': {
         const p = event.payload as {
           sub_type: string; from: string; data: unknown; call_id: string
+        }
+        if (p.sub_type === 'webrtc_offer') {
+          _bufferedOffer = { subType: p.sub_type, from: p.from, data: p.data, callId: p.call_id }
         }
         _webRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
         break

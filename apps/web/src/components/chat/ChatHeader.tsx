@@ -9,9 +9,10 @@ import { chatApi } from '@/api/chat'
 interface Props {
   chat: Chat
   onStartCall: (type: 'voice' | 'video') => void
+  onOpenProfile?: () => void
 }
 
-export function ChatHeader({ chat, onStartCall }: Props) {
+export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
   const navigate = useNavigate()
   const typing = useChatStore((s) => s.typing[chat.id] ?? [])
   const typingCount = typing.length
@@ -57,8 +58,10 @@ export function ChatHeader({ chat, onStartCall }: Props) {
   return (
     <header className="flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10 shadow-sm">
       <div className="flex items-center gap-3 px-4 py-3">
-        <Avatar name={title} url={chat.avatar_url} size={40} />
-        <div className="flex-1 min-w-0">
+        <button onClick={onOpenProfile} className="rounded-full focus:outline-none" title="View profile">
+          <Avatar name={title} url={chat.avatar_url} size={40} />
+        </button>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onOpenProfile}>
           <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{title}</p>
           <p className={`text-xs truncate ${typingCount > 0 ? 'text-primary-500 italic' : 'text-gray-500 dark:text-gray-400'}`}>
             {subtitle}

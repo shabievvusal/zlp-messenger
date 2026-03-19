@@ -8,7 +8,8 @@
       "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/ws\")",
       "Bash(go build:*)",
       "Bash(go mod:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

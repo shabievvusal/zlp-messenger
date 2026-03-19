@@ -5,7 +5,7 @@ import { ChatWindow } from '@/components/chat/ChatWindow'
 import { EmptyChat } from '@/components/chat/EmptyChat'
 import { IncomingCallModal } from '@/components/call/IncomingCallModal'
 import { ActiveCallScreen } from '@/components/call/ActiveCallScreen'
-import { useWebSocket, registerWebRTCHandler } from '@/hooks/useWebSocket'
+import { useWebSocket, registerWebRTCHandler, registerCallAcceptedHandler, getBufferedOffer, clearBufferedOffer } from '@/hooks/useWebSocket'
 import { useWebRTC } from '@/hooks/useWebRTC'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
@@ -30,17 +30,11 @@ export function MessengerPage() {
       .catch(() => setChats([]))
   }, [])
 
-  // Wire WebRTC signaling through the WS handler
+  // Wire WebRTC signaling through the WS handler (caller side: answer + ice only)
   useEffect(() => {
-    registerWebRTCHandler(async (subType, from, data, callId) => {
-      if (subType === 'webrtc_offer') {
-        // We received an offer — this shouldn't happen here since we handle incoming calls separately
-        // The answerCall is triggered from IncomingCallModal accept
-      } else if (subType === 'webrtc_answer') {
-        await handleAnswer(data as RTCSessionDescriptionInit)
-      } else if (subType === 'webrtc_ice') {
-        await handleICE(data as RTCIceCandidateInit)
-      }
+    registerWebRTCHandler(async (subType, _from, data) => {
+      if (subType === 'webrtc_answer') await handleAnswer(data as RTCSessionDescriptionInit)
+      else if (subType === 'webrtc_ice') await handleICE(data as RTCIceCandidateInit)
     })
     return () => registerWebRTCHandler(null)
   }, [handleAnswer, handleICE])
@@ -48,54 +42,46 @@ export function MessengerPage() {
   // Initiate an outgoing call
   const handleStartCall = useCallback(async (targetId: string, targetName: string, type: 'voice' | 'video') => {
     const callId = generateId()
-    setActive({
-      callId,
-      targetId,
-      targetName,
-      type,
-      status: 'ringing',
-      isMuted: false,
-      isVideoOff: false,
-      isSpeakerOn: true,
-      localStream: null,
-      remoteStream: null,
-    })
     const callerName = currentUser
       ? `${currentUser.first_name}${currentUser.last_name ? ' ' + currentUser.last_name : ''}`
       : 'Unknown'
+    setActive({ callId, targetId, targetName, type, status: 'ringing', isMuted: false, isVideoOff: false, isSpeakerOn: true, localStream: null, remoteStream: null })
     send('call_initiate', { target_user_id: targetId, call_id: callId, call_type: type, caller_name: callerName })
-    await startCall(callId, targetId, type)
+
+    // When callee accepts → THEN send WebRTC offer
+    registerCallAcceptedHandler(async () => {
+      registerCallAcceptedHandler(null)
+      await startCall(callId, targetId, type)
+    })
   }, [send, startCall, setActive, currentUser])
 
   // Accept incoming call
   const handleAccept = useCallback(async (type: 'voice' | 'video') => {
     if (!incoming) return
-    setActive({
-      callId: incoming.callId,
-      targetId: incoming.callerId,
-      targetName: incoming.callerName,
-      type,
-      status: 'connecting',
-      isMuted: false,
-      isVideoOff: false,
-      isSpeakerOn: true,
-      localStream: null,
-      remoteStream: null,
-    })
+    const snap = incoming // snapshot to avoid stale closure
+    setActive({ callId: snap.callId, targetId: snap.callerId, targetName: snap.callerName, type, status: 'connecting', isMuted: false, isVideoOff: false, isSpeakerOn: true, localStream: null, remoteStream: null })
     setIncoming(null)
-    send('call_accept', { caller_id: incoming.callerId, call_id: incoming.callId })
+    send('call_accept', { caller_id: snap.callerId, call_id: snap.callId })
 
-    // Wire up WebRTC offer handler for this specific call
-    registerWebRTCHandler(async (subType, from, data, callId) => {
-      if (subType === 'webrtc_offer' && callId === incoming.callId) {
-        await answerCall(incoming.callId, incoming.callerId, data as RTCSessionDescriptionInit, type)
-        registerWebRTCHandler(async (subType2, from2, data2) => {
-          if (subType2 === 'webrtc_ice') await handleICE(data2 as RTCIceCandidateInit)
-        })
-      } else if (subType === 'webrtc_ice') {
-        await handleICE(data as RTCIceCandidateInit)
-      }
+    const doAnswer = async (data: unknown) => {
+      await answerCall(snap.callId, snap.callerId, data as RTCSessionDescriptionInit, type)
+      registerWebRTCHandler(async (subType, _from, d) => {
+        if (subType === 'webrtc_ice') await handleICE(d as RTCIceCandidateInit)
+      })
+    }
+
+    // Register handler for offer that may come after accept
+    registerWebRTCHandler(async (subType, _from, data) => {
+      if (subType === 'webrtc_offer') await doAnswer(data)
+      else if (subType === 'webrtc_ice') await handleICE(data as RTCIceCandidateInit)
     })
+
+    // If offer already buffered before accept, process now
+    const buffered = getBufferedOffer()
+    if (buffered && buffered.callId === snap.callId && buffered.subType === 'webrtc_offer') {
+      clearBufferedOffer()
+      await doAnswer(buffered.data)
+    }
   }, [incoming, send, answerCall, handleICE, setActive, setIncoming])
 
   // Decline incoming call

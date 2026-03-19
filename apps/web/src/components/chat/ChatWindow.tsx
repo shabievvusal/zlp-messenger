@@ -7,6 +7,7 @@ import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
 import { MediaViewer } from './MediaViewer'
+import { UserProfilePanel } from './UserProfilePanel'
 import { ChatProvider } from '@/contexts/ChatContext'
 
 const PAGE_SIZE = 50
@@ -24,6 +25,7 @@ export function ChatWindow({ onStartCall }: Props) {
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const loadingMore = useRef(false)
+  const [showProfile, setShowProfile] = useState(false)
 
   const loadMessages = useCallback(async (id: string, off = 0) => {
     try {
@@ -88,10 +90,21 @@ export function ChatWindow({ onStartCall }: Props) {
 
   return (
     <ChatProvider>
-      <div className="flex flex-col h-full bg-chat dark:bg-chat-dark">
-        <ChatHeader chat={chat} onStartCall={handleStartCall} />
+      <div className="flex flex-col h-full bg-chat dark:bg-chat-dark relative">
+        <ChatHeader
+          chat={chat}
+          onStartCall={handleStartCall}
+          onOpenProfile={chat.type === 'private' && chat.peer_user_id ? () => setShowProfile(true) : undefined}
+        />
         <MessageList chatId={chatId} onLoadMore={handleLoadMore} />
         <MessageInput chatId={chatId} />
+        {showProfile && chat.peer_user_id && (
+          <UserProfilePanel
+            userId={chat.peer_user_id}
+            onClose={() => setShowProfile(false)}
+            onCall={(type) => handleStartCall(type)}
+          />
+        )}
       </div>
       <MediaViewer />
     </ChatProvider>

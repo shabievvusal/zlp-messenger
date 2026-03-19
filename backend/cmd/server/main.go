@@ -102,6 +102,7 @@ func main() {
 
 	// Users
 	protected.Get("/users/search", searchHandler.SearchUsers)
+	protected.Get("/users/:id", profileHandler.GetPublicUser)
 	protected.Patch("/users/me", profileHandler.UpdateProfile)
 
 	// Chats

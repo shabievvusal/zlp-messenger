@@ -2,6 +2,8 @@ package auth
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/zlp-messenger/backend/internal/models"
 )
 
 type ProfileHandler struct {
@@ -10,6 +12,28 @@ type ProfileHandler struct {
 
 func NewProfileHandler(repo *Repository) *ProfileHandler {
 	return &ProfileHandler{repo: repo}
+}
+
+// GET /api/users/:id
+func (h *ProfileHandler) GetPublicUser(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	}
+	user, err := h.repo.GetUserByID(c.Context(), id)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "user not found")
+	}
+	return c.JSON(models.PublicUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Bio:       user.Bio,
+		AvatarURL: user.AvatarURL,
+		IsBot:     user.IsBot,
+		LastSeen:  user.LastSeen,
+	})
 }
 
 // PATCH /api/users/me
