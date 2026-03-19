@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	ID         uuid.UUID  `db:"id" json:"id"`
+	NumericID  int64      `db:"numeric_id" json:"numeric_id"`
 	Username   string     `db:"username" json:"username"`
 	Email      *string    `db:"email" json:"email,omitempty"`
 	Phone      *string    `db:"phone" json:"phone,omitempty"`
@@ -27,6 +28,7 @@ type User struct {
 // PublicUser — safe to send to other users (no private fields)
 type PublicUser struct {
 	ID        uuid.UUID  `json:"id"`
+	NumericID int64      `json:"numeric_id"`
 	Username  string     `json:"username"`
 	FirstName string     `json:"first_name"`
 	LastName  *string    `json:"last_name,omitempty"`
@@ -39,6 +41,7 @@ type PublicUser struct {
 func (u *User) ToPublic() PublicUser {
 	return PublicUser{
 		ID:        u.ID,
+		NumericID: u.NumericID,
 		Username:  u.Username,
 		FirstName: u.FirstName,
 		LastName:  u.LastName,

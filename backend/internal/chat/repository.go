@@ -27,14 +27,14 @@ func (r *Repository) CreateChat(ctx context.Context, chat *models.Chat) error {
 	query := `
 		INSERT INTO chats (id, type, title, description, username, is_public, created_by)
 		VALUES (:id, :type, :title, :description, :username, :is_public, :created_by)
-		RETURNING created_at, updated_at`
+		RETURNING numeric_id, created_at, updated_at`
 	rows, err := r.db.NamedQueryContext(ctx, query, chat)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	if rows.Next() {
-		return rows.Scan(&chat.CreatedAt, &chat.UpdatedAt)
+		return rows.Scan(&chat.NumericID, &chat.CreatedAt, &chat.UpdatedAt)
 	}
 	return nil
 }
@@ -55,7 +55,7 @@ func (r *Repository) GetChatByID(ctx context.Context, id uuid.UUID) (*models.Cha
 func (r *Repository) GetUserChats(ctx context.Context, userID uuid.UUID) ([]models.Chat, error) {
 	query := `
 		SELECT
-			c.id, c.type,
+			c.id, c.numeric_id, c.type,
 			CASE WHEN c.type = 'private' THEN
 				(SELECT u.first_name || COALESCE(' ' || u.last_name, '')
 				 FROM users u INNER JOIN chat_members cm2 ON cm2.user_id = u.id
@@ -181,10 +181,11 @@ func (r *Repository) GetAdminActions(ctx context.Context, chatID uuid.UUID, limi
 			args[i] = id
 		}
 		q := fmt.Sprintf(
-			`SELECT id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
+			`SELECT id, numeric_id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
 			strings.Join(ph, ","))
 		type row struct {
 			ID        uuid.UUID `db:"id"`
+			NumericID int64     `db:"numeric_id"`
 			Username  string    `db:"username"`
 			FirstName string    `db:"first_name"`
 			LastName  *string   `db:"last_name"`
@@ -195,7 +196,7 @@ func (r *Repository) GetAdminActions(ctx context.Context, chatID uuid.UUID, limi
 			userMap := map[uuid.UUID]*models.PublicUser{}
 			for _, u := range rows {
 				pu := &models.PublicUser{
-					ID: u.ID, Username: u.Username,
+					ID: u.ID, NumericID: u.NumericID, Username: u.Username,
 					FirstName: u.FirstName, AvatarURL: u.AvatarURL,
 				}
 				if u.LastName != nil {
@@ -263,12 +264,13 @@ func (r *Repository) GetMembers(ctx context.Context, chatID uuid.UUID) ([]models
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 	}
 	query := fmt.Sprintf(
-		`SELECT id, username, first_name, last_name, bio, avatar_url, is_bot, last_seen
+		`SELECT id, numeric_id, username, first_name, last_name, bio, avatar_url, is_bot, last_seen
 		 FROM users WHERE id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
 	type userRow struct {
 		ID        uuid.UUID  `db:"id"`
+		NumericID int64      `db:"numeric_id"`
 		Username  string     `db:"username"`
 		FirstName string     `db:"first_name"`
 		LastName  *string    `db:"last_name"`
@@ -287,6 +289,7 @@ func (r *Repository) GetMembers(ctx context.Context, chatID uuid.UUID) ([]models
 			if u, ok := uMap[members[i].UserID]; ok {
 				members[i].User = &models.PublicUser{
 					ID:        u.ID,
+					NumericID: u.NumericID,
 					Username:  u.Username,
 					FirstName: u.FirstName,
 					LastName:  u.LastName,
@@ -457,11 +460,12 @@ func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message)
 		i++
 	}
 	query := fmt.Sprintf(
-		`SELECT id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
+		`SELECT id, numeric_id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
 	type row struct {
 		ID        uuid.UUID `db:"id"`
+		NumericID int64     `db:"numeric_id"`
 		Username  string    `db:"username"`
 		FirstName string    `db:"first_name"`
 		LastName  *string   `db:"last_name"`
@@ -479,7 +483,7 @@ func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message)
 		if msgs[i].SenderID != nil {
 			if u, ok := userMap[*msgs[i].SenderID]; ok {
 				msgs[i].Sender = &models.PublicUser{
-					ID: u.ID, Username: u.Username,
+					ID: u.ID, NumericID: u.NumericID, Username: u.Username,
 					FirstName: u.FirstName, LastName: u.LastName, AvatarURL: u.AvatarURL,
 				}
 			}
@@ -488,7 +492,7 @@ func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message)
 			if senderID, ok := fwdSenderMap[*msgs[i].ForwardFromID]; ok {
 				if u, ok := userMap[senderID]; ok {
 					msgs[i].ForwardSender = &models.PublicUser{
-						ID: u.ID, Username: u.Username,
+						ID: u.ID, NumericID: u.NumericID, Username: u.Username,
 						FirstName: u.FirstName, LastName: u.LastName, AvatarURL: u.AvatarURL,
 					}
 				}

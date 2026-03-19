@@ -178,10 +178,12 @@ export function UserProfilePanel({ userId, onClose, onCall }: Props) {
             </InfoRow>
           )}
 
-          {profile?.id && (
+          {profile?.numeric_id != null && (
             <InfoRow>
-              <p className="text-sm text-primary-500 font-medium">id: {profile.id.slice(0, 8)}...</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">О себе</p>
+              <p className="text-sm text-primary-500 font-medium">
+                {String(profile.numeric_id).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">ID</p>
             </InfoRow>
           )}
 

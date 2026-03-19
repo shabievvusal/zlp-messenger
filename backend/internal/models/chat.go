@@ -49,6 +49,7 @@ func DefaultPermissions() ChatPermissions {
 
 type Chat struct {
 	ID           uuid.UUID  `db:"id" json:"id"`
+	NumericID    int64      `db:"numeric_id" json:"numeric_id"`
 	Type         ChatType   `db:"type" json:"type"`
 	Title        *string    `db:"title" json:"title,omitempty"`
 	Description  *string    `db:"description" json:"description,omitempty"`

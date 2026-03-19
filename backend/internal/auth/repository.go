@@ -21,14 +21,14 @@ func (r *Repository) CreateUser(ctx context.Context, u *models.User) error {
 	query := `
 		INSERT INTO users (id, username, email, phone, password, first_name, last_name)
 		VALUES (:id, :username, :email, :phone, :password, :first_name, :last_name)
-		RETURNING created_at, updated_at`
+		RETURNING numeric_id, created_at, updated_at`
 	rows, err := r.db.NamedQueryContext(ctx, query, u)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	if rows.Next() {
-		return rows.Scan(&u.CreatedAt, &u.UpdatedAt)
+		return rows.Scan(&u.NumericID, &u.CreatedAt, &u.UpdatedAt)
 	}
 	return nil
 }

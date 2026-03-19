@@ -3,7 +3,6 @@ package auth
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/zlp-messenger/backend/internal/models"
 )
 
 type ProfileHandler struct {
@@ -24,16 +23,7 @@ func (h *ProfileHandler) GetPublicUser(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusNotFound, "user not found")
 	}
-	return c.JSON(models.PublicUser{
-		ID:        user.ID,
-		Username:  user.Username,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		Bio:       user.Bio,
-		AvatarURL: user.AvatarURL,
-		IsBot:     user.IsBot,
-		LastSeen:  user.LastSeen,
-	})
+	return c.JSON(user.ToPublic())
 }
 
 // PATCH /api/users/me

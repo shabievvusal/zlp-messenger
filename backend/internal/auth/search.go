@@ -23,7 +23,7 @@ func (r *SearchRepository) SearchUsers(ctx context.Context, query string, limit 
 	pattern := fmt.Sprintf("%%%s%%", query)
 
 	rows, err := r.db.QueryxContext(ctx, `
-		SELECT id, username, first_name, last_name, bio, avatar_url, is_bot, last_seen
+		SELECT id, numeric_id, username, first_name, last_name, bio, avatar_url, is_bot, last_seen
 		FROM users
 		WHERE is_banned = FALSE
 		  AND (

@@ -451,11 +451,17 @@ export function ChatInfoPanel({ chat, onClose, onCall }: Props) {
           {isPrivate && profile?.username && (
             <InfoRow label="Имя пользователя" value={`@${profile.username}`} highlight />
           )}
+          {isPrivate && profile?.numeric_id != null && (
+            <InfoRow label="ID" value={String(profile.numeric_id).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0')} highlight />
+          )}
           {isGroup && chat.description && (
             <InfoRow label="Описание" value={chat.description} />
           )}
           {isGroup && chat.username && (
             <InfoRow label="Ссылка" value={`@${chat.username}`} highlight />
+          )}
+          {isGroup && chat.numeric_id != null && (
+            <InfoRow label="ID" value={`-100${chat.numeric_id}`} highlight />
           )}
 
           {/* Media stats row (group) */}

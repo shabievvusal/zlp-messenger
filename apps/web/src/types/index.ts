@@ -1,5 +1,6 @@
 export interface User {
   id: string
+  numeric_id: number
   username: string
   first_name: string
   last_name?: string
@@ -13,6 +14,7 @@ export type ChatType = 'private' | 'group' | 'channel' | 'saved'
 
 export interface Chat {
   id: string
+  numeric_id: number
   type: ChatType
   title?: string
   description?: string
