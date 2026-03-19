@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { VoiceMessage } from './VoiceMessage'
 import { Avatar } from '@/components/ui/Avatar'
+import { UserProfilePanel } from './UserProfilePanel'
 import { mediaUrl } from '@/utils/media'
 
 interface Props {
@@ -39,6 +40,7 @@ function parseMentions(text: string): React.ReactNode {
 }
 
 export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }: Props) {
+  const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
     return (
@@ -169,14 +171,19 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
       {/* Avatar slot — always 28px wide so bubbles align; avatar shown on last msg in a sequence */}
       {!isSelecting && (
         <div className="w-7 flex-shrink-0 self-end">
-          {isLastInGroup && (
-            <Avatar
-              name={msg.sender
-                ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`
-                : '?'}
-              url={msg.sender?.avatar_url ? mediaUrl(msg.sender.avatar_url) : null}
-              size={28}
-            />
+          {isLastInGroup && msg.sender_id && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setViewProfileId(msg.sender_id!) }}
+              className="rounded-full hover:opacity-80 active:scale-90 transition-all"
+            >
+              <Avatar
+                name={msg.sender
+                  ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`
+                  : '?'}
+                url={msg.sender?.avatar_url ? mediaUrl(msg.sender.avatar_url) : null}
+                size={28}
+              />
+            </button>
           )}
         </div>
       )}
@@ -205,8 +212,22 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
 
         {/* Forward indicator */}
         {msg.forward_from_id && (
-          <div className="mb-1 px-2 py-0.5 text-xs text-gray-400 italic flex items-center gap-1">
-            <span>⤵</span> Переслано
+          <div className="mb-1 px-2 py-1 rounded-lg border-l-2 border-primary-400
+            bg-primary-50/40 dark:bg-primary-900/20 flex items-center gap-1.5">
+            <svg className="w-3 h-3 text-primary-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">Переслано от </span>
+            {msg.forward_sender ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewProfileId(msg.forward_sender!.id.toString()) }}
+                className="text-[11px] text-primary-500 font-medium hover:underline">
+                {msg.forward_sender.first_name}{msg.forward_sender.last_name ? ' ' + msg.forward_sender.last_name : ''}
+              </button>
+            ) : (
+              <span className="text-[11px] text-gray-400">неизвестного</span>
+            )}
           </div>
         )}
 
@@ -390,6 +411,14 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
           </div>
         )}
       </div>
+
+      {/* User profile modal */}
+      {viewProfileId && (
+        <UserProfilePanel
+          userId={viewProfileId}
+          onClose={() => setViewProfileId(null)}
+        />
+      )}
 
       {/* Context menu — Telegram style */}
       {menu && (

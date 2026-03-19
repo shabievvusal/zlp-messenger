@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useChatStore } from '@/store/chat'
 import { chatApi } from '@/api/chat'
 import { Avatar } from '@/components/ui/Avatar'
@@ -11,8 +12,10 @@ interface Props {
 }
 
 export function ForwardModal({ messages, onClose }: Props) {
+  const navigate = useNavigate()
   const chats = useChatStore((s) => s.chats)
   const addMessage = useChatStore((s) => s.addMessage)
+  const setActiveChat = useChatStore((s) => s.setActiveChat)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -37,6 +40,8 @@ export function ForwardModal({ messages, onClose }: Props) {
       const targetTitle = chats.find((c) => c.id === targetChatId)?.title ?? 'чат'
       toast.success(`Переслано в «${targetTitle}»`)
       onClose()
+      setActiveChat(targetChatId)
+      navigate(`/chat/${targetChatId}`)
     } catch {
       toast.error('Не удалось переслать сообщение')
     } finally {

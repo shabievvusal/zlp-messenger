@@ -394,12 +394,55 @@ func (r *Repository) populateReadStatus(ctx context.Context, msgs []models.Messa
 	return nil
 }
 
-// populateSenders fetches sender info for a slice of messages in one query.
+// populateSenders fetches sender info (and forward sender info) for a slice of messages in one query.
 func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message) error {
 	idSet := make(map[uuid.UUID]struct{})
 	for _, m := range msgs {
 		if m.SenderID != nil {
 			idSet[*m.SenderID] = struct{}{}
+		}
+		// Also collect IDs of original senders for forwarded messages
+		if m.ForwardFromID != nil {
+			// We need to look up the original message's sender_id
+			idSet[*m.ForwardFromID] = struct{}{} // will resolve below via sub-query
+		}
+	}
+
+	// Collect forward_from_id message IDs and resolve their sender_ids
+	fwdMsgIDs := make([]uuid.UUID, 0)
+	for _, m := range msgs {
+		if m.ForwardFromID != nil {
+			fwdMsgIDs = append(fwdMsgIDs, *m.ForwardFromID)
+		}
+	}
+	// Map: original_message_id → sender_id
+	fwdSenderMap := map[uuid.UUID]uuid.UUID{}
+	if len(fwdMsgIDs) > 0 {
+		ph := make([]string, len(fwdMsgIDs))
+		args := make([]interface{}, len(fwdMsgIDs))
+		for i, id := range fwdMsgIDs {
+			ph[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		q := fmt.Sprintf(`SELECT id, sender_id FROM messages WHERE id IN (%s)`, strings.Join(ph, ","))
+		type fwdRow struct {
+			ID       uuid.UUID  `db:"id"`
+			SenderID *uuid.UUID `db:"sender_id"`
+		}
+		var fwdRows []fwdRow
+		if err := r.db.SelectContext(ctx, &fwdRows, q, args...); err == nil {
+			for _, fr := range fwdRows {
+				if fr.SenderID != nil {
+					fwdSenderMap[fr.ID] = *fr.SenderID
+					idSet[*fr.SenderID] = struct{}{}
+				}
+			}
+		}
+	}
+	// Remove forward_from_ids that got added (not actual user IDs)
+	for _, m := range msgs {
+		if m.ForwardFromID != nil {
+			delete(idSet, *m.ForwardFromID)
 		}
 	}
 	if len(idSet) == 0 {
@@ -433,16 +476,22 @@ func (r *Repository) populateSenders(ctx context.Context, msgs []models.Message)
 		userMap[u.ID] = u
 	}
 	for i := range msgs {
-		if msgs[i].SenderID == nil {
-			continue
+		if msgs[i].SenderID != nil {
+			if u, ok := userMap[*msgs[i].SenderID]; ok {
+				msgs[i].Sender = &models.PublicUser{
+					ID: u.ID, Username: u.Username,
+					FirstName: u.FirstName, LastName: u.LastName, AvatarURL: u.AvatarURL,
+				}
+			}
 		}
-		if u, ok := userMap[*msgs[i].SenderID]; ok {
-			msgs[i].Sender = &models.PublicUser{
-				ID:        u.ID,
-				Username:  u.Username,
-				FirstName: u.FirstName,
-				LastName:  u.LastName,
-				AvatarURL: u.AvatarURL,
+		if msgs[i].ForwardFromID != nil {
+			if senderID, ok := fwdSenderMap[*msgs[i].ForwardFromID]; ok {
+				if u, ok := userMap[senderID]; ok {
+					msgs[i].ForwardSender = &models.PublicUser{
+						ID: u.ID, Username: u.Username,
+						FirstName: u.FirstName, LastName: u.LastName, AvatarURL: u.AvatarURL,
+					}
+				}
 			}
 		}
 	}

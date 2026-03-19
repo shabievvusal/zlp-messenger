@@ -243,6 +243,16 @@ func (s *Service) SendMessage(ctx context.Context, senderID uuid.UUID, in SendMe
 		}
 	}
 
+	// When forwarding, embed original sender info
+	if in.ForwardFromID != nil {
+		if origMsg, err := s.repo.GetMessageByID(ctx, *in.ForwardFromID); err == nil && origMsg.SenderID != nil {
+			if origUser, err := s.repo.GetUserByID(ctx, *origMsg.SenderID); err == nil {
+				pub := origUser.ToPublic()
+				msg.ForwardSender = &pub
+			}
+		}
+	}
+
 	// When forwarding, copy attachments from the original message so recipients see media
 	if in.ForwardFromID != nil {
 		origAttachments, _ := s.repo.GetAttachments(ctx, *in.ForwardFromID)

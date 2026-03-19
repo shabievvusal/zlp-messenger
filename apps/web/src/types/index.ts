@@ -50,6 +50,7 @@ export interface Message {
   edited_at?: string
   is_read: boolean
   sender?: User
+  forward_sender?: User
   attachments?: Attachment[]
   reactions?: Reaction[]
   reply_to?: Message
