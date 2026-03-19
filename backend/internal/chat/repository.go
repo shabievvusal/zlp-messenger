@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -170,7 +171,43 @@ func (r *Repository) GetMessages(ctx context.Context, chatID uuid.UUID, limit, o
 		WHERE chat_id = $1 AND is_deleted = FALSE
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`, chatID, limit, offset)
-	return msgs, err
+	if err != nil || len(msgs) == 0 {
+		return msgs, err
+	}
+	_ = r.populateAttachments(ctx, msgs)
+	return msgs, nil
+}
+
+// populateAttachments fetches attachments for a slice of messages in one query
+// and sets msg.Attachments on each matching message.
+func (r *Repository) populateAttachments(ctx context.Context, msgs []models.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	args := make([]interface{}, len(msgs))
+	placeholders := make([]string, len(msgs))
+	for i, m := range msgs {
+		args[i] = m.ID
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	query := fmt.Sprintf(
+		`SELECT * FROM attachments WHERE message_id IN (%s) ORDER BY created_at`,
+		strings.Join(placeholders, ","),
+	)
+	var attachments []models.Attachment
+	if err := r.db.SelectContext(ctx, &attachments, query, args...); err != nil {
+		return err
+	}
+	aMap := make(map[uuid.UUID][]models.Attachment)
+	for _, a := range attachments {
+		aMap[a.MessageID] = append(aMap[a.MessageID], a)
+	}
+	for i := range msgs {
+		if atts, ok := aMap[msgs[i].ID]; ok {
+			msgs[i].Attachments = atts
+		}
+	}
+	return nil
 }
 
 func (r *Repository) EditMessage(ctx context.Context, id uuid.UUID, text string) error {
@@ -207,7 +244,11 @@ func (r *Repository) SearchMessages(ctx context.Context, chatID uuid.UUID, query
 		WHERE chat_id = $1 AND is_deleted = FALSE AND text ILIKE $2
 		ORDER BY created_at DESC LIMIT 50`,
 		chatID, fmt.Sprintf("%%%s%%", query))
-	return msgs, err
+	if err != nil || len(msgs) == 0 {
+		return msgs, err
+	}
+	_ = r.populateAttachments(ctx, msgs)
+	return msgs, nil
 }
 
 // ============================================================
