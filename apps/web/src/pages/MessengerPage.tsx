@@ -12,7 +12,9 @@ export function MessengerPage() {
   useWebSocket()
 
   useEffect(() => {
-    chatApi.getChats().then(({ data }) => setChats(data))
+    chatApi.getChats()
+      .then(({ data }) => setChats(data ?? []))
+      .catch(() => setChats([]))
   }, [])
 
   return (
@@ -21,7 +23,7 @@ export function MessengerPage() {
       <main className="flex-1 flex flex-col overflow-hidden">
         <Routes>
           <Route path="/" element={<EmptyChat />} />
-          <Route path="/chat/:chatId" element={<ChatWindow />} />
+          <Route path="chat/:chatId" element={<ChatWindow />} />
         </Routes>
       </main>
     </div>

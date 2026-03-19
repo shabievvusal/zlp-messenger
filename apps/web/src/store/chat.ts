@@ -1,16 +1,12 @@
 import { create } from 'zustand'
 import type { Chat, Message } from '@/types'
 
-interface TypingState {
-  [chatId: string]: Set<string> // chatId → set of typing userIds
-}
-
 interface ChatState {
   chats: Chat[]
   activeChatId: string | null
-  messages: Record<string, Message[]> // chatId → messages
-  typing: TypingState
-  onlineUsers: Set<string>
+  messages: Record<string, Message[]>
+  typing: Record<string, string[]>   // chatId → userIds[]
+  onlineUsers: string[]              // userIds (array, не Set — для совместимости)
 
   setChats: (chats: Chat[]) => void
   setActiveChat: (chatId: string | null) => void
@@ -25,6 +21,7 @@ interface ChatState {
 
   setTyping: (chatId: string, userId: string, isTyping: boolean) => void
   setOnline: (userId: string, online: boolean) => void
+  isOnline: (userId: string) => boolean
   incrementUnread: (chatId: string) => void
   clearUnread: (chatId: string) => void
 }
@@ -34,9 +31,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeChatId: null,
   messages: {},
   typing: {},
-  onlineUsers: new Set(),
+  onlineUsers: [],
 
-  setChats: (chats) => set({ chats }),
+  setChats: (chats) => set({ chats: chats ?? [] }),
   setActiveChat: (chatId) => set({ activeChatId: chatId }),
 
   upsertChat: (chat) =>
@@ -49,37 +46,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }),
 
   setMessages: (chatId, messages) =>
-    set((state) => ({ messages: { ...state.messages, [chatId]: messages } })),
+    set((state) => ({ messages: { ...state.messages, [chatId]: messages ?? [] } })),
 
   prependMessages: (chatId, messages) =>
     set((state) => ({
       messages: {
         ...state.messages,
-        [chatId]: [...messages, ...(state.messages[chatId] ?? [])],
+        [chatId]: [...(messages ?? []), ...(state.messages[chatId] ?? [])],
       },
     })),
 
   addMessage: (msg) =>
-    set((state) => {
-      const existing = state.messages[msg.chat_id] ?? []
-      return {
-        messages: {
-          ...state.messages,
-          [msg.chat_id]: [...existing, msg],
-        },
-      }
-    }),
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [msg.chat_id]: [...(state.messages[msg.chat_id] ?? []), msg],
+      },
+    })),
 
   updateMessage: (msg) =>
-    set((state) => {
-      const existing = state.messages[msg.chat_id] ?? []
-      return {
-        messages: {
-          ...state.messages,
-          [msg.chat_id]: existing.map((m) => (m.id === msg.id ? msg : m)),
-        },
-      }
-    }),
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [msg.chat_id]: (state.messages[msg.chat_id] ?? []).map((m) =>
+          m.id === msg.id ? msg : m
+        ),
+      },
+    })),
 
   removeMessage: (chatId, msgId) =>
     set((state) => ({
@@ -98,19 +91,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setTyping: (chatId, userId, isTyping) =>
     set((state) => {
-      const prev = state.typing[chatId] ? new Set(state.typing[chatId]) : new Set<string>()
-      if (isTyping) prev.add(userId)
-      else prev.delete(userId)
-      return { typing: { ...state.typing, [chatId]: prev } }
+      const prev = state.typing[chatId] ?? []
+      const next = isTyping
+        ? prev.includes(userId) ? prev : [...prev, userId]
+        : prev.filter((id) => id !== userId)
+      return { typing: { ...state.typing, [chatId]: next } }
     }),
 
   setOnline: (userId, online) =>
-    set((state) => {
-      const next = new Set(state.onlineUsers)
-      if (online) next.add(userId)
-      else next.delete(userId)
-      return { onlineUsers: next }
-    }),
+    set((state) => ({
+      onlineUsers: online
+        ? state.onlineUsers.includes(userId) ? state.onlineUsers : [...state.onlineUsers, userId]
+        : state.onlineUsers.filter((id) => id !== userId),
+    })),
+
+  isOnline: (userId) => get().onlineUsers.includes(userId),
 
   incrementUnread: (chatId) =>
     set((state) => ({

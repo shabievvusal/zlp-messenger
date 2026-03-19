@@ -7,8 +7,8 @@ interface Props {
 }
 
 export function ChatHeader({ chat }: Props) {
-  const typing = useChatStore((s) => s.typing[chat.id])
-  const typingCount = typing?.size ?? 0
+  const typing = useChatStore((s) => s.typing[chat.id] ?? [])
+  const typingCount = typing.length
 
   const title = chat.title ?? 'Unknown'
   const subtitle =
