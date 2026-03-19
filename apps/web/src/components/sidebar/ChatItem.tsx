@@ -1,14 +1,14 @@
+import { useState } from 'react'
 import { clsx } from 'clsx'
 import type { Chat } from '@/types'
 import { Avatar } from '@/components/ui/Avatar'
 import { useChatStore } from '@/store/chat'
+import { ChatContextMenu } from './ChatContextMenu'
 
 interface Props {
   chat: Chat
   active: boolean
   onClick: () => void
-  onArchive?: () => void      // "В архив"
-  onUnarchive?: () => void    // "Из архива"
 }
 
 // Telegram-style sender name colors
@@ -34,7 +34,22 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })
 }
 
-export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Props) {
+function getAttachmentPreview(type: string, fileName?: string): string {
+  switch (type) {
+    case 'photo':    return '📷 Фотография'
+    case 'video':    return '🎥 Видео'
+    case 'voice':    return '🎤 Голосовое сообщение'
+    case 'audio':    return '🎵 Аудио'
+    case 'sticker':  return '🃏 Стикер'
+    case 'gif':      return '🎞 GIF'
+    case 'document': return `📎 ${fileName ?? 'Файл'}`
+    default:         return `📎 ${fileName ?? 'Файл'}`
+  }
+}
+
+export function ChatItem({ chat, active, onClick }: Props) {
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
   const title = chat.type === 'saved' ? 'Избранное' : (chat.title ?? 'Unknown')
   const lastMsg = chat.last_message
   const unreadMentions = useChatStore((s) => s.unreadMentions[chat.id] ?? 0)
@@ -47,7 +62,7 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
 
   const isGroup = chat.type === 'group' || chat.type === 'channel'
 
-  // Build preview text and sender info
+  // Build preview and sender info
   let preview = ''
   let senderId = ''
   let senderName = ''
@@ -57,18 +72,14 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
       preview = lastMsg.text ?? ''
     } else {
       if (lastMsg.attachments?.length) {
-        const t = lastMsg.attachments[0].type
-        preview = t === 'photo' ? 'Фото'
-          : t === 'video' ? 'Видео'
-          : t === 'voice' ? 'Голосовое сообщение'
-          : t === 'audio' ? 'Аудио'
-          : t === 'sticker' ? 'Стикер'
-          : t === 'gif' ? 'GIF'
-          : (lastMsg.attachments[0].file_name ?? 'Файл')
+        const att = lastMsg.attachments[0]
+        preview = getAttachmentPreview(att.type, att.file_name)
+        // If there's also text, prefer text
         if (lastMsg.text) preview = lastMsg.text
       } else {
         preview = lastMsg.text ?? ''
       }
+
       if (isGroup && lastMsg.sender) {
         senderName = lastMsg.sender.first_name
         senderId = lastMsg.sender.id
@@ -79,10 +90,16 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
   const hasUnread = chat.unread_count > 0
   const senderColor = senderId ? getSenderColor(senderId) : undefined
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
   return (
-    <div className="group relative">
+    <>
       <button
         onClick={onClick}
+        onContextMenu={handleContextMenu}
         className={clsx(
           'relative w-full flex items-center gap-3 px-3 py-2.5',
           'transition-colors duration-100 text-left',
@@ -97,7 +114,7 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
         )}
 
         {/* Avatar */}
-        <div className="relative flex-shrink-0">
+        <div className="flex-shrink-0">
           {chat.type === 'saved' ? (
             <SavedAvatar />
           ) : (
@@ -132,6 +149,7 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
               </span>
             </div>
 
+            {/* Time + mute */}
             <div className="flex items-center gap-1 flex-shrink-0">
               {isMuted && (
                 <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -147,7 +165,7 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
             </div>
           </div>
 
-          {/* Row 2: sender + preview + badges */}
+          {/* Row 2: preview + badges */}
           <div className="flex items-center justify-between gap-1">
             <div className="flex-1 min-w-0">
               {senderName ? (
@@ -192,42 +210,23 @@ export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Prop
         </div>
       </button>
 
-      {/* Hover: archive / unarchive button */}
-      {(onArchive || onUnarchive) && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onArchive ? onArchive() : onUnarchive?.() }}
-          title={onArchive ? 'В архив' : 'Из архива'}
-          className="absolute right-2 top-1/2 -translate-y-1/2
-            opacity-0 group-hover:opacity-100 transition-opacity
-            w-7 h-7 flex items-center justify-center rounded-full
-            text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
-            hover:bg-black/8 dark:hover:bg-white/10"
-        >
-          {onArchive ? (
-            // Archive icon (box with down arrow)
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
-          ) : (
-            // Unarchive icon (box with up arrow)
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-4 4l-4-4m0 0L7 12m4-4v8" />
-            </svg>
-          )}
-        </button>
+      {ctxMenu && (
+        <ChatContextMenu
+          chat={chat}
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+        />
       )}
-    </div>
+    </>
   )
 }
 
-// Special bookmark avatar for Saved Messages
 function SavedAvatar() {
   return (
-    <div className="w-[50px] h-[50px] rounded-full
+    <div className="w-[50px] h-[50px] rounded-full flex-shrink-0
       bg-gradient-to-br from-primary-400 to-primary-600
-      flex items-center justify-center flex-shrink-0">
+      flex items-center justify-center">
       <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
         <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
       </svg>

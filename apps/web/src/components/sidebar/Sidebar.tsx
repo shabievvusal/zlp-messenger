@@ -21,7 +21,7 @@ export function Sidebar() {
   const clearMentions = useChatStore((s) => s.clearMentions)
   const upsertChat = useChatStore((s) => s.upsertChat)
 
-  const { activeFolderId, folders, archivedChatIds, archiveChat, unarchiveChat } = useFolderStore()
+  const { activeFolderId, folders, archivedChatIds } = useFolderStore()
 
   const [search, setSearch] = useState('')
   const [newChatMode, setNewChatMode] = useState<'private' | 'group' | null>(null)
@@ -131,7 +131,6 @@ export function Sidebar() {
                   chat={chat}
                   active={chat.id === activeChatId}
                   onClick={() => handleSelectChat(chat.id)}
-                  onUnarchive={() => unarchiveChat(chat.id)}
                 />
               ))
             )}
@@ -272,7 +271,6 @@ export function Sidebar() {
                     chat={chat}
                     active={chat.id === activeChatId}
                     onClick={() => handleSelectChat(chat.id)}
-                    onArchive={() => archiveChat(chat.id)}
                   />
                 ))
               )}
