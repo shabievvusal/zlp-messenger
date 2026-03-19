@@ -5,7 +5,6 @@ import { useFolderStore, ChatFolder } from '@/store/folders'
 import { ChatItem } from './ChatItem'
 import { SearchBar } from './SearchBar'
 import { NewChatModal } from './NewChatModal'
-import { SideDrawer } from './SideDrawer'
 import { FolderBar } from './FolderBar'
 import { FolderEditModal } from './FolderEditModal'
 
@@ -20,7 +19,6 @@ export function Sidebar() {
 
   const [search, setSearch] = useState('')
   const [newChatMode, setNewChatMode] = useState<'private' | 'group' | null>(null)
-  const [showDrawer, setShowDrawer] = useState(false)
   const [editingFolder, setEditingFolder] = useState<ChatFolder | null | undefined>(undefined)
   // undefined = closed, null = create new, ChatFolder = edit existing
 
@@ -63,39 +61,19 @@ export function Sidebar() {
       <div className="flex-1 flex flex-col bg-sidebar dark:bg-sidebar-dark overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-2.5
+        <div className="flex items-center px-4 py-2.5
           border-b border-black/8 dark:border-white/8">
-
-          <button
-            onClick={() => setShowDrawer(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-full
-              hover:bg-black/8 dark:hover:bg-white/10 transition-colors active:scale-90"
-            title="Меню"
-          >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          <span className="font-semibold text-sm flex-1 text-gray-900 dark:text-gray-100 tracking-tight">
+          <span className="font-semibold text-base flex-1 text-gray-900 dark:text-gray-100 tracking-tight">
             {folderName ?? 'ZLP Messenger'}
           </span>
-
-          <button
-            onClick={() => setNewChatMode('private')}
-            className="w-8 h-8 flex items-center justify-center rounded-full
-              hover:bg-black/8 dark:hover:bg-white/10 transition-colors"
-            title="Новый чат"
-          >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          </button>
         </div>
 
-        {/* Search */}
-        <SearchBar value={search} onChange={setSearch} />
+        {/* Search + new chat */}
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          onNewChat={() => setNewChatMode('private')}
+        />
 
         {/* Folder active indicator */}
         {activeFolderId && folderName && !search && (
@@ -159,13 +137,6 @@ export function Sidebar() {
         <NewChatModal
           initialMode={newChatMode}
           onClose={() => setNewChatMode(null)}
-        />
-      )}
-
-      {showDrawer && (
-        <SideDrawer
-          onClose={() => setShowDrawer(false)}
-          onCreateGroup={() => { setShowDrawer(false); setNewChatMode('group') }}
         />
       )}
 
