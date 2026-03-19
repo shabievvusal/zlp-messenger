@@ -1,10 +1,11 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Sidebar } from '@/components/sidebar/Sidebar'
 import { ChatWindow } from '@/components/chat/ChatWindow'
 import { EmptyChat } from '@/components/chat/EmptyChat'
 import { IncomingCallModal } from '@/components/call/IncomingCallModal'
 import { ActiveCallScreen } from '@/components/call/ActiveCallScreen'
+import { MinimizedCallBar } from '@/components/call/MinimizedCallBar'
 import {
   useWebSocket,
   registerWebRTCHandler,
@@ -33,6 +34,8 @@ export function MessengerPage() {
   const setActive = useCallStore((s) => s.setActive)
   const updateActive = useCallStore((s) => s.updateActive)
   const clearAll = useCallStore((s) => s.clearAll)
+
+  const [isCallMinimized, setIsCallMinimized] = useState(false)
 
   // Таймаут звонка — если нет ответа 45 сек, вешаем трубку
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
@@ -184,6 +187,7 @@ export function MessengerPage() {
   // ── Завершить ──────────────────────────────────────────────
   const handleHangup = useCallback(() => {
     clearTimeout(callTimeoutRef.current)
+    setIsCallMinimized(false)
     hangup()
     clearAll()
   }, [hangup, clearAll])
@@ -201,11 +205,19 @@ export function MessengerPage() {
       {incoming && (
         <IncomingCallModal onAccept={handleAccept} onDecline={handleDecline} />
       )}
-      {active && active.status !== 'ended' && (
+      {active && active.status !== 'ended' && !isCallMinimized && (
         <ActiveCallScreen
           onHangup={handleHangup}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
+          onMinimize={() => setIsCallMinimized(true)}
+        />
+      )}
+      {active && active.status !== 'ended' && isCallMinimized && (
+        <MinimizedCallBar
+          onHangup={handleHangup}
+          onToggleMute={toggleMute}
+          onExpand={() => setIsCallMinimized(false)}
         />
       )}
     </div>

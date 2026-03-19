@@ -6,9 +6,10 @@ interface Props {
   onHangup: () => void
   onToggleMute: () => void
   onToggleVideo: () => void
+  onMinimize: () => void
 }
 
-export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Props) {
+export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo, onMinimize }: Props) {
   const active = useCallStore((s) => s.active)
   const [elapsed, setElapsed] = useState(0)
 
@@ -75,6 +76,19 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
 
       {/* Overlay gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+
+      {/* Minimize button */}
+      <button
+        onClick={onMinimize}
+        title="Свернуть"
+        className="absolute top-4 left-4 z-20 w-9 h-9 rounded-full
+          bg-white/10 hover:bg-white/20 flex items-center justify-center
+          transition-colors text-white"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
       {/* Top: caller info */}
       <div className="relative z-10 flex flex-col items-center pt-16 gap-3">
