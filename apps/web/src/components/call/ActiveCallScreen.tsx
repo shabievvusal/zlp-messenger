@@ -6,13 +6,14 @@ interface Props {
   onHangup: () => void
   onToggleMute: () => void
   onToggleVideo: () => void
+  onToggleScreenShare: () => void
   onMinimize: () => void
   isMaximized: boolean
   onToggleMaximize: () => void
 }
 
 export function ActiveCallScreen({
-  onHangup, onToggleMute, onToggleVideo,
+  onHangup, onToggleMute, onToggleVideo, onToggleScreenShare,
   onMinimize, isMaximized, onToggleMaximize,
 }: Props) {
   const active = useCallStore((s) => s.active)
@@ -26,6 +27,12 @@ export function ActiveCallScreen({
       localVideoRef.current.srcObject = active.localStream
     }
   }, [active?.localStream])
+
+  // When screen sharing, show screen in local PiP instead of camera
+  useEffect(() => {
+    if (!localVideoRef.current) return
+    localVideoRef.current.srcObject = active?.screenStream ?? active?.localStream ?? null
+  }, [active?.screenStream, active?.localStream])
 
   // Remote video — MUTED, audio handled by persistent <audio> in MessengerPage
   useEffect(() => {
@@ -58,6 +65,9 @@ export function ActiveCallScreen({
     ? 'fixed inset-0 z-50'
     : 'fixed bottom-4 right-4 z-50 w-72 rounded-2xl overflow-hidden shadow-2xl'
 
+  // Show local video PiP when video call OR screen sharing
+  const showLocalPiP = isVideo || active.isScreenSharing
+
   return (
     <div className={`${containerCls} bg-gray-900 flex flex-col text-white animate-scaleIn`}>
 
@@ -75,6 +85,14 @@ export function ActiveCallScreen({
       )}
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+
+      {/* Screen share indicator banner */}
+      {active.isScreenSharing && (
+        <div className="absolute top-0 left-0 right-0 z-30 bg-blue-600/90 text-white text-xs
+          text-center py-1 font-medium">
+          Вы демонстрируете экран
+        </div>
+      )}
 
       {/* Top bar: minimize + maximize */}
       <div className="relative z-10 flex items-center justify-between px-3 pt-3">
@@ -108,7 +126,7 @@ export function ActiveCallScreen({
 
       {/* Caller info */}
       <div className="relative z-10 flex flex-col items-center pt-3 pb-2 gap-2">
-        {!isVideo && <Avatar name={active.targetName} size={isMaximized ? 80 : 52} />}
+        {!isVideo && !active.isScreenSharing && <Avatar name={active.targetName} size={isMaximized ? 80 : 52} />}
         <p className={`font-semibold drop-shadow ${isMaximized ? 'text-xl' : 'text-base'}`}>
           {active.targetName}
         </p>
@@ -120,15 +138,15 @@ export function ActiveCallScreen({
         </p>
       </div>
 
-      {/* Local video PiP */}
-      {isVideo && (
+      {/* Local video / screen share PiP */}
+      {showLocalPiP && (
         <div className={`absolute z-20 rounded-xl overflow-hidden shadow-xl border border-white/20
           ${isMaximized ? 'top-4 right-4 w-28 h-40' : 'top-14 right-2 w-16 h-24'}`}>
           <video
             ref={localVideoRef}
             autoPlay muted playsInline
             className="w-full h-full object-cover"
-            style={{ transform: 'scaleX(-1)' }}
+            style={{ transform: active.isScreenSharing ? undefined : 'scaleX(-1)' }}
           />
         </div>
       )}
@@ -140,7 +158,7 @@ export function ActiveCallScreen({
           <ControlBtn
             active={active.isMuted}
             onClick={onToggleMute}
-            label={active.isMuted ? 'Микрофон' : 'Микрофон'}
+            label={active.isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
             activeColor="bg-white/25"
             small={!isMaximized}
           >
@@ -151,6 +169,18 @@ export function ActiveCallScreen({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             )}
+          </ControlBtn>
+
+          {/* Screen share */}
+          <ControlBtn
+            active={active.isScreenSharing}
+            onClick={onToggleScreenShare}
+            label={active.isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
+            activeColor="bg-blue-500/70"
+            small={!isMaximized}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </ControlBtn>
 
           {/* Hangup */}

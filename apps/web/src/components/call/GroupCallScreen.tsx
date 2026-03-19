@@ -6,13 +6,14 @@ interface Props {
   onLeave: () => void
   onToggleMute: () => void
   onToggleVideo: () => void
+  onToggleScreenShare: () => void
   onMinimize: () => void
   isMaximized: boolean
   onToggleMaximize: () => void
 }
 
 export function GroupCallScreen({
-  onLeave, onToggleMute, onToggleVideo,
+  onLeave, onToggleMute, onToggleVideo, onToggleScreenShare,
   onMinimize, isMaximized, onToggleMaximize,
 }: Props) {
   const active = useGroupCallStore((s) => s.active)
@@ -54,6 +55,13 @@ export function GroupCallScreen({
 
   return (
     <div className={`${containerCls} bg-[#1a1a2e] flex flex-col text-white animate-scaleIn`}>
+
+      {/* Screen share banner */}
+      {active.isScreenSharing && (
+        <div className="bg-blue-600/90 text-white text-xs text-center py-1 font-medium flex-shrink-0">
+          Вы демонстрируете экран
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-black/20 flex-shrink-0">
@@ -132,6 +140,12 @@ export function GroupCallScreen({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           )}
+        </CtrlBtn>
+
+        {/* Screen share */}
+        <CtrlBtn active={active.isScreenSharing} onClick={onToggleScreenShare} activeClass="bg-blue-500/70" small>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </CtrlBtn>
 
         <button

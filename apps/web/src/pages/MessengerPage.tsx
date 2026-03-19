@@ -28,6 +28,7 @@ import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
 import { generateId } from '@/utils/uuid'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { playJoinSound, playLeaveSound } from '@/utils/callSounds'
 
 export function MessengerPage() {
   const location = useLocation()
@@ -35,8 +36,11 @@ export function MessengerPage() {
   const setChats = useChatStore((s) => s.setChats)
   const currentUser = useAuthStore((s) => s.user)
   const { send } = useWebSocket()
-  const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer, closePeerConnection } = useWebRTC(send)
-  const { joinAndOffer, handleOffer: groupHandleOffer, handleAnswer: groupHandleAnswer, handleIce: groupHandleIce, participantLeft, leave: groupLeave, callIdRef: groupCallIdRef } = useGroupWebRTC(send)
+  const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer,
+    closePeerConnection, handleRenegotiationOffer, toggleScreenShare } = useWebRTC(send)
+  const { joinAndOffer, handleOffer: groupHandleOffer, handleAnswer: groupHandleAnswer,
+    handleIce: groupHandleIce, participantLeft, leave: groupLeave, callIdRef: groupCallIdRef,
+    toggleScreenShare: groupToggleScreenShare } = useGroupWebRTC(send)
 
   const incoming = useCallStore((s) => s.incoming)
   const active = useCallStore((s) => s.active)
@@ -63,6 +67,15 @@ export function MessengerPage() {
     remoteAudioRef.current.srcObject = active.remoteStream
   }, [active?.remoteStream])
 
+  // Play join sound when 1-1 call transitions to active state
+  const prevCallStatus = useRef<string | undefined>()
+  useEffect(() => {
+    if (active?.status === 'active' && prevCallStatus.current !== 'active') {
+      playJoinSound()
+    }
+    prevCallStatus.current = active?.status
+  }, [active?.status])
+
   // Таймаут звонка — если нет ответа 45 сек, вешаем трубку
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
@@ -86,6 +99,8 @@ export function MessengerPage() {
   useEffect(() => {
     registerRemoteCallEndedHandler(() => {
       clearTimeout(callTimeoutRef.current)
+      // Only play leave sound if the call was actually connected
+      if (useCallStore.getState().active?.status === 'active') playLeaveSound()
       closePeerConnection()
     })
     return () => registerRemoteCallEndedHandler(null)
@@ -144,6 +159,7 @@ export function MessengerPage() {
     // We register a one-time handler for it
     const onJoined = async (existingParticipants: { userId: string; userName: string }[]) => {
       await joinAndOffer(callId, existingParticipants, stream)
+      playJoinSound()
     }
     _groupJoinedHandlers.set(callId, onJoined)
   }, [send, currentUser, groupJoinCall, joinAndOffer])
@@ -166,6 +182,7 @@ export function MessengerPage() {
 
     const onJoined = async (existingParticipants: { userId: string; userName: string }[]) => {
       await joinAndOffer(callId, existingParticipants, stream)
+      playJoinSound()
     }
     _groupJoinedHandlers.set(callId, onJoined)
   }, [send, currentUser, groupJoinCall, joinAndOffer])
@@ -173,6 +190,7 @@ export function MessengerPage() {
   const handleLeaveGroupCall = useCallback(() => {
     const state = useGroupCallStore.getState().active
     if (!state) return
+    playLeaveSound()
     send('group_call_leave', { chat_id: state.chatId, call_id: state.callId })
     groupLeave()
     removeLiveCall(state.chatId)
@@ -288,8 +306,10 @@ export function MessengerPage() {
     const doAnswer = async (data: unknown) => {
       console.log('[Call] answering offer')
       await answerCall(snap.callId, snap.callerId, data as RTCSessionDescriptionInit, type, stream)
+      // After initial answer: handle ICE + mid-call renegotiation offers (e.g. screen share)
       registerWebRTCHandler(async (subType, _from, d) => {
         if (subType === 'webrtc_ice') await handleICE(d as RTCIceCandidateInit)
+        else if (subType === 'webrtc_offer') await handleRenegotiationOffer(d as RTCSessionDescriptionInit)
       })
     }
 
@@ -315,6 +335,7 @@ export function MessengerPage() {
 
   // ── Завершить ──────────────────────────────────────────────
   const handleHangup = useCallback(() => {
+    if (useCallStore.getState().active?.status === 'active') playLeaveSound()
     clearTimeout(callTimeoutRef.current)
     setIsCallMinimized(false)
     hangup()
@@ -351,6 +372,7 @@ export function MessengerPage() {
           onHangup={handleHangup}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
+          onToggleScreenShare={toggleScreenShare}
           onMinimize={() => setIsCallMinimized(true)}
           isMaximized={isCallMaximized}
           onToggleMaximize={() => setIsCallMaximized(v => !v)}
@@ -371,6 +393,7 @@ export function MessengerPage() {
           onLeave={handleLeaveGroupCall}
           onToggleMute={handleGroupToggleMute}
           onToggleVideo={handleGroupToggleVideo}
+          onToggleScreenShare={groupToggleScreenShare}
           onMinimize={() => groupSetMinimized(true)}
           isMaximized={isGroupCallMaximized}
           onToggleMaximize={() => setIsGroupCallMaximized(v => !v)}

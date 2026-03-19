@@ -25,6 +25,7 @@ export function useGroupWebRTC(send: SendFn) {
   } = useGroupCallStore.getState()
 
   const callIdRef = useRef<string>('')
+  const screenStreamRef = useRef<MediaStream | null>(null)
 
   // ── Create a peer connection for one remote participant ─────
   const createPC = useCallback((userId: string): RTCPeerConnection => {
@@ -157,6 +158,8 @@ export function useGroupWebRTC(send: SendFn) {
 
   // ── Leave call — close all PCs ─────────────────────────────
   const leave = useCallback(() => {
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
     pcsRef.current.forEach((pc) => pc.close())
     pcsRef.current.clear()
     pendingICE.current.clear()
@@ -164,5 +167,56 @@ export function useGroupWebRTC(send: SendFn) {
     leaveCall()
   }, [leaveCall])
 
-  return { joinAndOffer, handleOffer, handleAnswer, handleIce, participantLeft, leave, callIdRef }
+  // ── Stop screen sharing ─────────────────────────────────────
+  const stopGroupScreenShare = useCallback(async () => {
+    const active = useGroupCallStore.getState().active
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+
+    // Restore camera video track (or remove if voice-only)
+    const cameraTrack = active?.localStream?.getVideoTracks()[0]
+    for (const [, pc] of pcsRef.current) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+      if (sender && cameraTrack) {
+        await sender.replaceTrack(cameraTrack).catch(() => {})
+      } else if (sender && !cameraTrack) {
+        pc.removeTrack(sender)
+      }
+    }
+    useGroupCallStore.getState().setScreenSharing(false)
+  }, [])
+
+  // ── Toggle screen sharing ───────────────────────────────────
+  const toggleScreenShare = useCallback(async () => {
+    const active = useGroupCallStore.getState().active
+    if (!active) return
+
+    if (active.isScreenSharing) {
+      await stopGroupScreenShare()
+      return
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      screenStreamRef.current = screenStream
+      const screenTrack = screenStream.getVideoTracks()[0]
+
+      for (const [, pc] of pcsRef.current) {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+        if (sender) {
+          await sender.replaceTrack(screenTrack).catch(() => {})
+        } else {
+          pc.addTrack(screenTrack, screenStream)
+        }
+      }
+
+      screenTrack.onended = () => { stopGroupScreenShare() }
+      useGroupCallStore.getState().setScreenSharing(true)
+    } catch {
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+      screenStreamRef.current = null
+    }
+  }, [stopGroupScreenShare])
+
+  return { joinAndOffer, handleOffer, handleAnswer, handleIce, participantLeft, leave, callIdRef, toggleScreenShare }
 }

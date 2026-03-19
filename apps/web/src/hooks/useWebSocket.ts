@@ -4,6 +4,7 @@ import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
 import { useGroupCallStore } from '@/store/groupCall'
 import { canNotify } from './useNotificationPermission'
+import { playMemberJoinSound, playMemberLeaveSound } from '@/utils/callSounds'
 import type { WSEvent, Message } from '@/types'
 
 const RECONNECT_DELAY = 3000
@@ -211,12 +212,21 @@ export function useWebSocket() {
       case 'group_call_member_joined': {
         const p = event.payload as { call_id: string; chat_id: string; user_id: string; user_name: string }
         liveCallMemberJoined(p.chat_id, p.call_id, p.user_id, p.user_name)
+        // Play sound for others joining (not ourselves) when we're in that call
+        const selfId = useAuthStore.getState().user?.id
+        if (p.user_id !== selfId && useGroupCallStore.getState().active?.chatId === p.chat_id) {
+          playMemberJoinSound()
+        }
         break
       }
       case 'group_call_member_left': {
         const p = event.payload as { chat_id: string; user_id: string }
         liveCallMemberLeft(p.chat_id, p.user_id)
         _groupMemberLeftHandler?.(p.user_id)
+        const selfId = useAuthStore.getState().user?.id
+        if (p.user_id !== selfId && useGroupCallStore.getState().active?.chatId === p.chat_id) {
+          playMemberLeaveSound()
+        }
         break
       }
       case 'group_call_ended': {
