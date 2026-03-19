@@ -249,7 +249,7 @@ export function MessageInput({ chatId }: Props) {
         stream.getTracks().forEach((t) => t.stop())
         const blob = new Blob(recChunksRef.current, { type: mimeType || 'audio/webm' })
         const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: mimeType || 'audio/webm' })
-        await uploadFile(file)
+        addFilesToQueue([file])
       }
       recorder.start()
       setRecording(true)
