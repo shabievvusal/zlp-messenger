@@ -11,7 +11,6 @@ import { ChatInfoPanel } from './ChatInfoPanel'
 import { ForwardModal } from './ForwardModal'
 import { ChatProvider, useChatCtx } from '@/contexts/ChatContext'
 import { useGroupCallStore } from '@/store/groupCall'
-import { markChatRead } from '@/hooks/useWebSocket'
 import type { Message } from '@/types'
 
 const PAGE_SIZE = 50
@@ -63,8 +62,8 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
       }
       if (data.length < PAGE_SIZE) setHasMore(false)
       clearUnread(id)
-      // Tell backend we've read messages up to the last one
-      if (sorted.length > 0) markChatRead(sorted[sorted.length - 1].id)
+      // Mark all messages in this chat as read (batch)
+      chatApi.markAllRead(id).catch(() => {})
     } catch { /* ignore */ }
   }, [])
 

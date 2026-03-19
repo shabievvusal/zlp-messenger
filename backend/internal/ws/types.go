@@ -48,6 +48,9 @@ const (
 	EventGroupCallMemberLeft   = "group_call_member_left"   // кто-то ушёл
 	EventGroupCallEnded        = "group_call_ended"         // звонок завершён
 	EventGroupCallWebRTC       = "group_call_webrtc"        // WebRTC сигналинг
+
+	// Read receipts
+	EventChatMessagesRead = "chat_messages_read" // все сообщения в чате прочитаны читателем
 )
 
 type IncomingEvent struct {

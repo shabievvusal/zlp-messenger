@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { Chat, ChatMember, Message, Attachment } from '@/types'
+import type { Chat, ChatMember, Message, Attachment, User } from '@/types'
 
 export const chatApi = {
   getChats: () => api.get<Chat[]>('/chats'),
@@ -64,6 +64,12 @@ export const chatApi = {
 
   leaveChat: (chatId: string) =>
     api.delete(`/chats/${chatId}/leave`),
+
+  markAllRead: (chatId: string) =>
+    api.post(`/chats/${chatId}/read`, {}),
+
+  getMessageReads: (msgId: string) =>
+    api.get<User[]>(`/messages/${msgId}/reads`),
 
   getGroupCallState: (chatId: string) =>
     api.get<{ active: boolean; call_id?: string; participants?: { user_id: string; user_name: string }[] }>(

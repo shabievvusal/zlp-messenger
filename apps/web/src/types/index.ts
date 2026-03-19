@@ -116,7 +116,7 @@ export type WSEventType =
   | 'new_message' | 'message_edited' | 'message_deleted'
   | 'reaction' | 'user_online' | 'user_offline'
   | 'user_typing' | 'user_stop_typing'
-  | 'message_read' | 'call_incoming' | 'call_accepted'
+  | 'message_read' | 'chat_messages_read' | 'call_incoming' | 'call_accepted'
   | 'call_declined' | 'call_ended' | 'call_webrtc' | 'mention' | 'error'
   | 'group_call_joined' | 'group_call_member_joined' | 'group_call_member_left'
   | 'group_call_ended' | 'group_call_webrtc'

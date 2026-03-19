@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import { clsx } from 'clsx'
-import type { Message, Reaction, ChatType } from '@/types'
+import type { Message, Reaction, ChatType, User } from '@/types'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
@@ -41,6 +41,7 @@ function parseMentions(text: string): React.ReactNode {
 
 export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }: Props) {
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
+  const [readsModal, setReadsModal] = useState(false)
   // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
     return (
@@ -420,6 +421,11 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
         />
       )}
 
+      {/* Message reads modal */}
+      {readsModal && (
+        <MessageReadsModal msgId={msg.id} onClose={() => setReadsModal(false)} />
+      )}
+
       {/* Context menu — Telegram style */}
       {menu && (
         <div
@@ -447,6 +453,9 @@ export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }
           {msg.text && <CtxItem icon={<IcCopy />} label="Копировать текст" onClick={handleCopyText} />}
           <CtxItem icon={<IcForward />} label="Переслать"      onClick={handleForward} />
           <CtxItem icon={<IcSelect />}  label="Выделить"       onClick={handleSelect} />
+          {isOwn && msg.is_read && (
+            <CtxItem icon={<IcReaders />} label="Кто прочитал" onClick={() => { setMenu(null); setReadsModal(true) }} />
+          )}
           {isOwn && (
             <>
               <div className="mx-3 my-1 border-t border-black/8 dark:border-white/8" />
@@ -541,6 +550,66 @@ function IcDelete() {
   return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
   </svg>
+}
+function IcReaders() {
+  return <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+}
+
+function MessageReadsModal({ msgId, onClose }: { msgId: string; onClose: () => void }) {
+  const [readers, setReaders] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    chatApi.getMessageReads(msgId)
+      .then(({ data }) => setReaders(data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [msgId])
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-[#2c2c2e] rounded-2xl shadow-2xl w-80 max-h-96 flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-black/8 dark:border-white/8">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Кто прочитал</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400 text-sm">Загрузка…</div>
+          ) : readers.length === 0 ? (
+            <div className="flex items-center justify-center py-8 text-gray-400 text-sm">Никто ещё не прочитал</div>
+          ) : (
+            readers.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-black/5 dark:hover:bg-white/5">
+                <Avatar
+                  name={`${u.first_name}${u.last_name ? ' ' + u.last_name : ''}`}
+                  url={u.avatar_url ? mediaUrl(u.avatar_url) : null}
+                  size={36}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {u.first_name}{u.last_name ? ' ' + u.last_name : ''}
+                  </p>
+                  {u.username && (
+                    <p className="text-xs text-gray-500 truncate">@{u.username}</p>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function formatSize(bytes: number) {

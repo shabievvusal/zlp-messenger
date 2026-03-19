@@ -128,6 +128,7 @@ func main() {
 	protected.Delete("/chats/:chatID/leave", chatHandler.LeaveChat)
 	protected.Get("/chats/:chatID/messages", chatHandler.GetMessages)
 	protected.Post("/chats/:chatID/messages", chatHandler.SendMessage)
+	protected.Post("/chats/:chatID/read", chatHandler.MarkAllRead)
 	protected.Get("/chats/:chatID/messages/search", chatHandler.SearchMessages)
 	protected.Patch("/chats/:chatID/mute", chatHandler.MuteChat)
 	protected.Get("/chats/:chatID/media", chatHandler.GetSharedMedia)
@@ -137,6 +138,7 @@ func main() {
 	protected.Delete("/messages/:msgID", chatHandler.DeleteMessage)
 	protected.Post("/messages/:msgID/react", chatHandler.AddReaction)
 	protected.Delete("/messages/:msgID/react", chatHandler.RemoveReaction)
+	protected.Get("/messages/:msgID/reads", chatHandler.GetMessageReads)
 
 	// Media
 	protected.Post("/media/upload", mediaHandler.Upload)

@@ -349,6 +349,14 @@ func (s *Service) MarkRead(ctx context.Context, userID, msgID uuid.UUID) error {
 	return s.repo.MarkRead(ctx, msgID, userID)
 }
 
+func (s *Service) MarkAllRead(ctx context.Context, userID, chatID uuid.UUID) ([]uuid.UUID, error) {
+	return s.repo.MarkAllRead(ctx, chatID, userID)
+}
+
+func (s *Service) GetMessageReads(ctx context.Context, msgID uuid.UUID) ([]models.PublicUser, error) {
+	return s.repo.GetMessageReads(ctx, msgID)
+}
+
 func (s *Service) GetPrivateChat(ctx context.Context, userA, userB uuid.UUID) (*models.Chat, error) {
 	return s.repo.GetPrivateChat(ctx, userA, userB)
 }

@@ -749,6 +749,59 @@ func (r *Repository) MarkRead(ctx context.Context, msgID, userID uuid.UUID) erro
 	return err
 }
 
+// MarkAllRead marks every message in the chat (not sent by userID) as read.
+// Returns distinct sender IDs whose messages were newly marked, for WS notification.
+func (r *Repository) MarkAllRead(ctx context.Context, chatID, userID uuid.UUID) ([]uuid.UUID, error) {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO message_reads (message_id, user_id)
+		SELECT m.id, $2 FROM messages m
+		WHERE m.chat_id = $1
+		  AND COALESCE(m.sender_id, '00000000-0000-0000-0000-000000000000'::uuid) != $2
+		  AND m.is_deleted = false
+		ON CONFLICT DO NOTHING`, chatID, userID)
+	if err != nil {
+		return nil, err
+	}
+	var senderIDs []uuid.UUID
+	err = r.db.SelectContext(ctx, &senderIDs, `
+		SELECT DISTINCT m.sender_id FROM messages m
+		WHERE m.chat_id = $1
+		  AND m.sender_id IS NOT NULL
+		  AND m.sender_id != $2
+		  AND m.is_deleted = false`, chatID, userID)
+	return senderIDs, err
+}
+
+// GetMessageReads returns the users who have read the given message (excluding the sender).
+func (r *Repository) GetMessageReads(ctx context.Context, msgID uuid.UUID) ([]models.PublicUser, error) {
+	type row struct {
+		ID        uuid.UUID `db:"id"`
+		NumericID int64     `db:"numeric_id"`
+		Username  string    `db:"username"`
+		FirstName string    `db:"first_name"`
+		LastName  *string   `db:"last_name"`
+		AvatarURL *string   `db:"avatar_url"`
+	}
+	var rows []row
+	err := r.db.SelectContext(ctx, &rows, `
+		SELECT u.id, u.numeric_id, u.username, u.first_name, u.last_name, u.avatar_url
+		FROM message_reads mr
+		JOIN users u ON u.id = mr.user_id
+		WHERE mr.message_id = $1
+		ORDER BY u.first_name`, msgID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]models.PublicUser, len(rows))
+	for i, r := range rows {
+		result[i] = models.PublicUser{
+			ID: r.ID, NumericID: r.NumericID, Username: r.Username,
+			FirstName: r.FirstName, LastName: r.LastName, AvatarURL: r.AvatarURL,
+		}
+	}
+	return result, nil
+}
+
 func (r *Repository) GetUnreadCount(ctx context.Context, chatID, userID uuid.UUID) (int, error) {
 	var count int
 	err := r.db.GetContext(ctx, &count, `

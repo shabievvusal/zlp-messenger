@@ -30,6 +30,7 @@ interface ChatState {
   clearMentions: (chatId: string) => void
   setChatMuted: (chatId: string, until: string | null) => void
   markMessageRead: (msgId: string) => void
+  markChatMessagesRead: (chatId: string, currentUserId: string) => void
   removeChat: (chatId: string) => void
 }
 
@@ -161,6 +162,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
         )
       }
       return { messages: next }
+    }),
+
+  // Mark own messages in a chat as read (triggered by chat_messages_read WS event)
+  markChatMessagesRead: (chatId, currentUserId) =>
+    set((state) => {
+      const msgs = state.messages[chatId]
+      if (!msgs) return state
+      return {
+        messages: {
+          ...state.messages,
+          [chatId]: msgs.map((m) =>
+            m.sender_id === currentUserId ? { ...m, is_read: true } : m
+          ),
+        },
+      }
     }),
 
   removeChat: (chatId) =>

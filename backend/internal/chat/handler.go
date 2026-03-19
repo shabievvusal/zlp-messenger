@@ -563,6 +563,39 @@ func (h *Handler) GetAdminActions(c *fiber.Ctx) error {
 	return c.JSON(actions)
 }
 
+// POST /api/chats/:chatID/read  — mark all messages in the chat as read
+func (h *Handler) MarkAllRead(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	senderIDs, err := h.service.MarkAllRead(c.Context(), userID, chatID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to mark as read")
+	}
+	if h.notifier != nil {
+		payload := map[string]any{"chat_id": chatID}
+		for _, sid := range senderIDs {
+			h.notifier.NotifyUser(sid, "chat_messages_read", payload)
+		}
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GET /api/messages/:msgID/reads  — who has read this message
+func (h *Handler) GetMessageReads(c *fiber.Ctx) error {
+	msgID, err := uuid.Parse(c.Params("msgID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid message id")
+	}
+	readers, err := h.service.GetMessageReads(c.Context(), msgID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to get reads")
+	}
+	return c.JSON(readers)
+}
+
 // GET /api/chats/:chatID/messages/search
 func (h *Handler) SearchMessages(c *fiber.Ctx) error {
 	userID := auth.GetUserIDFromCtx(c)
