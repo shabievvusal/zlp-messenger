@@ -156,6 +156,13 @@ export function useWebRTC(send: SendFn) {
 }
 
 export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      window.isSecureContext === false
+        ? 'insecure-context'
+        : 'api-unavailable'
+    )
+  }
   return navigator.mediaDevices.getUserMedia({
     audio: true,
     video: type === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false,

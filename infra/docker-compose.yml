@@ -97,8 +97,8 @@ services:
       context: ../apps/web
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost/api}
-        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost/ws}
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     container_name: zlp_web
     restart: unless-stopped
     depends_on:
@@ -112,13 +112,18 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_certs:/etc/nginx/certs
     depends_on:
       - backend
       - web
+    # Генерируем самоподписанный сертификат если его нет
+    entrypoint: ["/bin/sh", "-c", "if [ ! -f /etc/nginx/certs/selfsigned.crt ]; then apk add --no-cache openssl && mkdir -p /etc/nginx/certs && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout /etc/nginx/certs/selfsigned.key -out /etc/nginx/certs/selfsigned.crt -subj '/CN=zlp-messenger/O=ZLP/C=RU'; fi && nginx -g 'daemon off;'"]
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  nginx_certs:

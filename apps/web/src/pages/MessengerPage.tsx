@@ -62,9 +62,16 @@ export function MessengerPage() {
     let stream: MediaStream
     try {
       stream = await getLocalStream(type)
-    } catch (err) {
-      console.error('[Call] media access denied:', err)
-      alert('Не удалось получить доступ к микрофону/камере. Проверьте разрешения в браузере.')
+    } catch (err: any) {
+      console.error('[Call] getLocalStream failed:', err)
+      const msg = err?.message === 'insecure-context'
+        ? 'Звонки работают только по HTTPS или на localhost.\n\nОткрой сайт через https:// или настрой SSL на сервере.'
+        : err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+        ? 'Доступ к микрофону/камере запрещён. Нажми на иконку замка в адресной строке и разрешите доступ.'
+        : err?.name === 'NotFoundError'
+        ? 'Микрофон или камера не найдены. Подключите устройство и попробуйте снова.'
+        : `Ошибка доступа к камере/микрофону: ${err?.message ?? err}`
+      alert(msg)
       return
     }
 
@@ -109,9 +116,14 @@ export function MessengerPage() {
     let stream: MediaStream
     try {
       stream = await getLocalStream(type)
-    } catch (err) {
-      console.error('[Call] media access denied:', err)
-      alert('Не удалось получить доступ к микрофону/камере.')
+    } catch (err: any) {
+      console.error('[Call] getLocalStream failed:', err)
+      const msg = err?.message === 'insecure-context'
+        ? 'Звонки работают только по HTTPS или на localhost.'
+        : err?.name === 'NotAllowedError'
+        ? 'Доступ к микрофону/камере запрещён. Разрешите доступ в настройках браузера.'
+        : `Ошибка доступа к камере/микрофону: ${err?.message ?? err}`
+      alert(msg)
       return
     }
 
