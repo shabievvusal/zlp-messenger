@@ -169,18 +169,3 @@ export function MediaViewer() {
 
   return null
 }
-        href={mediaViewer.url}
-        download
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-white/10
-          flex items-center justify-center text-white hover:bg-white/25
-          active:scale-90 transition-all text-lg"
-        title="Download"
-      >
-        ↓
-      </a>
-    </div>
-  )
-}

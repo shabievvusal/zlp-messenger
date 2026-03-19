@@ -111,6 +111,5 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     </ChatContext.Provider>
   )
 }
-}
 
 export const useChatCtx = () => useContext(ChatContext)
