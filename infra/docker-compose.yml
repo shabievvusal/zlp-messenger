@@ -103,6 +103,17 @@ services:
     depends_on:
       - backend
 
+  # ── TURN server (WebRTC relay for NAT traversal) ─────────────
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: zlp_coturn
+    restart: unless-stopped
+    network_mode: host   # TURN needs direct access to network interfaces
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: -c /etc/coturn/turnserver.conf
+
   # ── Reverse proxy ────────────────────────────────────────────
 
   nginx:

@@ -1,11 +1,19 @@
 import { useRef, useCallback } from 'react'
 import { useCallStore } from '@/store/call'
 
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-]
+// TURN server is on the same host as the app (coturn container)
+function getIceServers(): RTCIceServer[] {
+  const host = window.location.hostname
+  return [
+    { urls: 'stun:stun.l.google.com:19302' },
+    // TURN relay — works even behind symmetric NAT
+    {
+      urls: `turn:${host}:3478`,
+      username: 'zlp',
+      credential: 'zlp_turn_secret',
+    },
+  ]
+}
 
 // How long to wait for WebRTC connection after signaling (ms)
 const CONNECT_TIMEOUT_MS = 20_000
@@ -22,14 +30,34 @@ export function useWebRTC(send: SendFn) {
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
-
-  // Current call context refs (for reconnect without prop drilling)
   const callIdRef = useRef<string>('')
   const targetIdRef = useRef<string>('')
 
   const updateActive = useCallStore((s) => s.updateActive)
 
-  // ── ICE restart (caller/initiator only) ───────────────────
+  // ── Teardown: notify other side, stop tracks, close PC ───
+
+  // Stored in a ref so it can be called from inside PC event handlers
+  // without circular useCallback dependencies
+  const closeCallRef = useRef<() => void>(() => {})
+
+  const closeCall = useCallback(() => {
+    clearTimeout(reconnectTimerRef.current)
+    clearTimeout(connectTimeoutRef.current)
+    const active = useCallStore.getState().active
+    if (active) {
+      send('call_end', { target_id: active.targetId, call_id: active.callId })
+      active.localStream?.getTracks().forEach((t) => t.stop())
+    }
+    pcRef.current?.close()
+    pcRef.current = null
+    updateActive({ status: 'ended' })
+  }, [send, updateActive])
+
+  // Keep the ref current so PC handlers can always call the latest version
+  closeCallRef.current = closeCall
+
+  // ── ICE restart (initiator only) ──────────────────────────
 
   const doIceRestart = useCallback(async () => {
     const pc = pcRef.current
@@ -59,10 +87,9 @@ export function useWebRTC(send: SendFn) {
     clearTimeout(reconnectTimerRef.current)
     clearTimeout(connectTimeoutRef.current)
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() })
     pcRef.current = pc
 
-    // Send ICE candidates to remote peer
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         send('webrtc_ice', {
@@ -73,7 +100,6 @@ export function useWebRTC(send: SendFn) {
       }
     }
 
-    // Receive remote stream → call is active
     pc.ontrack = (e) => {
       const remoteStream = e.streams[0]
       if (remoteStream) {
@@ -84,7 +110,10 @@ export function useWebRTC(send: SendFn) {
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState
-      const active = useCallStore.getState().active
+      // Guard: if this PC is no longer the active one, ignore
+      if (pc !== pcRef.current) return
+
+      const isInitiator = useCallStore.getState().active?.isInitiator
 
       if (state === 'connected') {
         clearTimeout(reconnectTimerRef.current)
@@ -95,8 +124,8 @@ export function useWebRTC(send: SendFn) {
         updateActive({ status: 'reconnecting' })
         clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = setTimeout(async () => {
-          if (pcRef.current?.connectionState === 'connected') return
-          if (active?.isInitiator) {
+          if (pc !== pcRef.current || pc.connectionState === 'connected') return
+          if (isInitiator) {
             reconnectAttemptsRef.current++
             await doIceRestart()
           }
@@ -104,13 +133,15 @@ export function useWebRTC(send: SendFn) {
 
       } else if (state === 'failed') {
         clearTimeout(reconnectTimerRef.current)
-        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS && active?.isInitiator) {
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS && isInitiator) {
           reconnectAttemptsRef.current++
           reconnectTimerRef.current = setTimeout(async () => {
+            if (pc !== pcRef.current) return
             await doIceRestart()
           }, RECONNECT_DELAY_MS)
         } else {
-          updateActive({ status: 'ended' })
+          // Permanently failed — notify the other side and end the call
+          closeCallRef.current()
         }
       }
     }
@@ -118,37 +149,17 @@ export function useWebRTC(send: SendFn) {
     return pc
   }, [send, updateActive, doIceRestart])
 
-  // ── Start connection timeout ──────────────────────────────
+  // ── Connection timeout: end call if no stream in time ────
 
   const startConnectTimeout = useCallback(() => {
     clearTimeout(connectTimeoutRef.current)
     connectTimeoutRef.current = setTimeout(() => {
       if (!useCallStore.getState().active?.remoteStream) {
-        updateActive({ status: 'ended' })
+        // Timed out — notify the other side and clean up
+        closeCallRef.current()
       }
     }, CONNECT_TIMEOUT_MS)
-  }, [updateActive])
-
-  // ── Caller: initiate (legacy, kept for compat) ────────────
-
-  const startCall = useCallback(async (
-    callId: string,
-    targetId: string,
-    type: 'voice' | 'video',
-  ) => {
-    const stream = await getLocalStream(type)
-    updateActive({ localStream: stream })
-
-    const pc = createPC(callId, targetId)
-    stream.getTracks().forEach((t) => pc.addTrack(t, stream))
-
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-    startConnectTimeout()
-
-    send('webrtc_offer', { target_user_id: targetId, call_id: callId, data: offer })
-    return stream
-  }, [createPC, send, updateActive, startConnectTimeout])
+  }, [])
 
   // ── Callee: answer ────────────────────────────────────────
 
@@ -166,7 +177,6 @@ export function useWebRTC(send: SendFn) {
     stream.getTracks().forEach((t) => pc.addTrack(t, stream))
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer))
-    // Flush buffered ICE candidates that arrived before remote description was set
     for (const c of pendingICERef.current) {
       await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
     }
@@ -186,7 +196,6 @@ export function useWebRTC(send: SendFn) {
     const pc = pcRef.current
     if (!pc) return
     await pc.setRemoteDescription(new RTCSessionDescription(answer))
-    // Flush buffered ICE candidates that arrived before remote description was set
     for (const c of pendingICERef.current) {
       await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
     }
@@ -198,7 +207,6 @@ export function useWebRTC(send: SendFn) {
   const handleICE = useCallback(async (candidate: RTCIceCandidateInit) => {
     const pc = pcRef.current
     if (!pc) return
-    // Buffer candidates until remote description is set
     if (!pc.remoteDescription) {
       pendingICERef.current.push(candidate)
       return
@@ -208,7 +216,7 @@ export function useWebRTC(send: SendFn) {
     } catch { /* ignore */ }
   }, [])
 
-  // ── Hang up ───────────────────────────────────────────────
+  // ── Hang up (user-initiated) ──────────────────────────────
 
   const hangup = useCallback(() => {
     clearTimeout(reconnectTimerRef.current)
@@ -242,7 +250,7 @@ export function useWebRTC(send: SendFn) {
     updateActive({ isVideoOff })
   }, [updateActive])
 
-  // ── Send offer using existing stream (caller after call_accepted) ──
+  // ── Send offer (caller, after call_accepted) ──────────────
 
   const sendOffer = useCallback(async (
     callId: string,
@@ -257,7 +265,7 @@ export function useWebRTC(send: SendFn) {
     send('webrtc_offer', { target_user_id: targetId, call_id: callId, data: offer })
   }, [createPC, send, startConnectTimeout])
 
-  return { startCall, answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer }
+  return { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer }
 }
 
 export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
