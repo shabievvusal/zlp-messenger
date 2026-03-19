@@ -120,7 +120,7 @@ function ChatWindowInner({ onStartCall }: Props) {
         onStartCall={handleStartCall}
         onOpenProfile={() => setShowProfile(true)}
       />
-      <MessageList chatId={chatId} onLoadMore={handleLoadMore} />
+      <MessageList chatId={chatId} chatType={chat.type} onLoadMore={handleLoadMore} />
 
       {/* Selection action bar OR normal input */}
       {isSelecting ? (

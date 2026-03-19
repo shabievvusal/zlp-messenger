@@ -44,5 +44,11 @@ export const useCallStore = create<CallState>((set) => ({
   setActive: (call) => set({ active: call }),
   updateActive: (patch) =>
     set((s) => s.active ? { active: { ...s.active, ...patch } } : s),
-  clearAll: () => set({ incoming: null, active: null }),
+  clearAll: () =>
+    set((s) => {
+      // Stop all media tracks so the camera/mic indicator turns off
+      s.active?.localStream?.getTracks().forEach((t) => t.stop())
+      s.active?.remoteStream?.getTracks().forEach((t) => t.stop())
+      return { incoming: null, active: null }
+    }),
 }))

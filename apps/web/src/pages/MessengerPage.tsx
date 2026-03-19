@@ -9,6 +9,7 @@ import {
   useWebSocket,
   registerWebRTCHandler,
   registerCallAcceptedHandler,
+  registerRemoteCallEndedHandler,
   getBufferedOffer,
   clearBufferedOffer,
 } from '@/hooks/useWebSocket'
@@ -23,7 +24,7 @@ export function MessengerPage() {
   const setChats = useChatStore((s) => s.setChats)
   const currentUser = useAuthStore((s) => s.user)
   const { send } = useWebSocket()
-  const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer } = useWebRTC(send)
+  const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer, closePeerConnection } = useWebRTC(send)
 
 
   const incoming = useCallStore((s) => s.incoming)
@@ -51,6 +52,15 @@ export function MessengerPage() {
     })
     return () => registerWebRTCHandler(null)
   }, [handleAnswer, handleICE])
+
+  // When remote ends or declines the call — close our PC (tracks stopped by clearAll in store)
+  useEffect(() => {
+    registerRemoteCallEndedHandler(() => {
+      clearTimeout(callTimeoutRef.current)
+      closePeerConnection()
+    })
+    return () => registerRemoteCallEndedHandler(null)
+  }, [closePeerConnection])
 
   // ── Исходящий звонок ────────────────────────────────────────
   const handleStartCall = useCallback(async (targetId: string, targetName: string, type: 'voice' | 'video') => {

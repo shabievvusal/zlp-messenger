@@ -265,7 +265,16 @@ export function useWebRTC(send: SendFn) {
     send('webrtc_offer', { target_user_id: targetId, call_id: callId, data: offer })
   }, [createPC, send, startConnectTimeout])
 
-  return { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer }
+  // Called when remote side ends the call — only close PC, don't send WS event
+  // (tracks are stopped by clearAll() in the store)
+  const closePeerConnection = useCallback(() => {
+    clearTimeout(reconnectTimerRef.current)
+    clearTimeout(connectTimeoutRef.current)
+    pcRef.current?.close()
+    pcRef.current = null
+  }, [])
+
+  return { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer, closePeerConnection }
 }
 
 export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {

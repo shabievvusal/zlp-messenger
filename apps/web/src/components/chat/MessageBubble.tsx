@@ -1,18 +1,20 @@
 import { useState, useRef, useEffect } from 'react'
 import { format } from 'date-fns'
 import { clsx } from 'clsx'
-import type { Message, Reaction } from '@/types'
+import type { Message, Reaction, ChatType } from '@/types'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { VoiceMessage } from './VoiceMessage'
+import { Avatar } from '@/components/ui/Avatar'
 import { mediaUrl } from '@/utils/media'
 
 interface Props {
   msg: Message
   isOwn: boolean
   isGrouped: boolean  // same sender as previous — no avatar/name needed
+  chatType: ChatType
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉']
@@ -26,7 +28,7 @@ function parseMentions(text: string): React.ReactNode {
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
+export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
   // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
     return (
@@ -154,13 +156,14 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
       )}
 
       {/* Sender avatar for incoming messages */}
-      {!isSelecting && (
+      {!isSelecting && !isOwn && (
         <div className="w-7 flex-shrink-0 self-end">
-          {!isOwn && !isGrouped && msg.sender && (
-            <div className="w-7 h-7 rounded-full bg-primary-400 flex items-center justify-center
-              text-white text-xs font-semibold select-none">
-              {msg.sender.first_name[0]?.toUpperCase()}
-            </div>
+          {!isGrouped && msg.sender && (
+            <Avatar
+              name={`${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`}
+              url={msg.sender.avatar_url ? mediaUrl(msg.sender.avatar_url) : null}
+              size={28}
+            />
           )}
         </div>
       )}
@@ -196,10 +199,10 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
 
         <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in', hasMedia && 'px-2 py-1.5')}>
 
-          {/* Sender name (in groups, for incoming only) */}
-          {!isOwn && !isGrouped && msg.sender && (
+          {/* Sender name (groups/channels only, for incoming non-grouped) */}
+          {!isOwn && !isGrouped && msg.sender && (chatType === 'group' || chatType === 'channel') && (
             <p className="text-xs font-semibold text-primary-500 mb-1">
-              {msg.sender.first_name} {msg.sender.last_name ?? ''}
+              {msg.sender.first_name}{msg.sender.last_name ? ' ' + msg.sender.last_name : ''}
             </p>
           )}
 

@@ -31,6 +31,10 @@ export function registerWebRTCHandler(fn: WebRTCHandler | null) {
 let _onCallAccepted: (() => Promise<void>) | null = null
 export function registerCallAcceptedHandler(fn: (() => Promise<void>) | null) { _onCallAccepted = fn }
 
+// Called when remote side ends or declines the call — close PC without re-sending WS event
+let _onRemoteCallEnded: (() => void) | null = null
+export function registerRemoteCallEndedHandler(fn: (() => void) | null) { _onRemoteCallEnded = fn }
+
 // Buffer offer in case it arrives before callee accepts
 let _bufferedOffer: { subType: string; from: string; data: unknown; callId: string } | null = null
 export function getBufferedOffer() { return _bufferedOffer }
@@ -82,7 +86,8 @@ export function useWebSocket() {
             const n = new Notification(senderName, {
               body,
               icon: '/favicon.ico',
-              tag: msg.chat_id,
+              // unique tag per message — prevents browser from silently replacing
+              tag: msg.id,
             })
             n.onclick = () => {
               window.focus()
@@ -142,10 +147,12 @@ export function useWebSocket() {
         break
       }
       case 'call_declined': {
+        _onRemoteCallEnded?.()
         clearAll()
         break
       }
       case 'call_ended': {
+        _onRemoteCallEnded?.()
         clearAll()
         break
       }

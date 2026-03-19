@@ -6,9 +6,11 @@ import { DateDivider } from './DateDivider'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import { ru } from 'date-fns/locale'
+import type { ChatType } from '@/types'
 
 interface Props {
   chatId: string
+  chatType: ChatType
   onLoadMore: () => void
 }
 
@@ -18,7 +20,7 @@ interface ScrollState {
   nearBottom: boolean
 }
 
-export function MessageList({ chatId, onLoadMore }: Props) {
+export function MessageList({ chatId, chatType, onLoadMore }: Props) {
   const messages = useChatStore((s) => s.messages[chatId] ?? [])
   const currentUser = useAuthStore((s) => s.user)
   const { highlightMsgId, setHighlightMsgId } = useChatCtx()
@@ -127,7 +129,7 @@ export function MessageList({ chatId, onLoadMore }: Props) {
                 <DateDivider date={format(new Date(msg.created_at), 'd MMMM yyyy', { locale: ru })} />
               )}
               <div className={isGrouped ? 'mt-0.5' : 'mt-3'}>
-                <MessageBubble msg={msg} isOwn={isOwn} isGrouped={isGrouped} />
+                <MessageBubble msg={msg} isOwn={isOwn} isGrouped={isGrouped} chatType={chatType} />
               </div>
             </div>
           )
