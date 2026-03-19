@@ -27,7 +27,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden
+    <div className="min-h-screen flex items-center justify-center relative overflow-auto
       bg-gradient-to-br from-primary-50 via-white to-primary-100/50
       dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
 
@@ -38,7 +38,7 @@ export function LoginPage() {
         rounded-full bg-primary-300/20 dark:bg-primary-600/10 blur-3xl pointer-events-none" />
 
       {/* Card */}
-      <div className="relative w-full max-w-sm mx-4 animate-scaleIn">
+      <div className="relative w-full max-w-sm mx-4 my-8 animate-scaleIn py-8">
         <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl
           rounded-3xl shadow-2xl shadow-black/10
           border border-white dark:border-white/10
