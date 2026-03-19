@@ -9,6 +9,11 @@ import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { useNotificationPermission } from '@/hooks/useNotificationPermission'
 import { registerNavigateToChat } from '@/hooks/useWebSocket'
 
+// Apply saved theme before first render
+const savedTheme = localStorage.getItem('theme')
+if (savedTheme === 'dark') document.documentElement.classList.add('dark')
+else if (savedTheme === 'light') document.documentElement.classList.remove('dark')
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />

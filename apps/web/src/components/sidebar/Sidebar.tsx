@@ -2,23 +2,21 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
-import { authApi } from '@/api/auth'
 import { ChatItem } from './ChatItem'
 import { SearchBar } from './SearchBar'
 import { NewChatModal } from './NewChatModal'
-import { Avatar } from '@/components/ui/Avatar'
+import { SideDrawer } from './SideDrawer'
 
 export function Sidebar() {
   const navigate = useNavigate()
   const chats = useChatStore((s) => s.chats)
   const activeChatId = useChatStore((s) => s.activeChatId)
   const setActiveChat = useChatStore((s) => s.setActiveChat)
-  const logout = useAuthStore((s) => s.logout)
-  const user = useAuthStore((s) => s.user)
+  const clearMentions = useChatStore((s) => s.clearMentions)
 
   const [search, setSearch] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
-  const [showMenu, setShowMenu] = useState(false)
+  const [showDrawer, setShowDrawer] = useState(false)
 
   const filtered = search
     ? chats.filter((c) =>
@@ -27,18 +25,10 @@ export function Sidebar() {
       )
     : chats
 
-  const clearMentions = useChatStore((s) => s.clearMentions)
-
   const handleSelect = (chatId: string) => {
     setActiveChat(chatId)
     clearMentions(chatId)
     navigate(`/chat/${chatId}`)
-  }
-
-  const handleLogout = async () => {
-    await authApi.logout().catch(() => {})
-    logout()
-    navigate('/login')
   }
 
   const totalUnread = chats.reduce((sum, c) => sum + (c.unread_count ?? 0), 0)
@@ -52,50 +42,20 @@ export function Sidebar() {
       <div className="flex items-center gap-2 px-3 py-2.5
         border-b border-black/8 dark:border-white/8">
 
-        {/* Avatar + menu */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMenu((v) => !v)}
-            className="rounded-full focus:outline-none transition-transform duration-150
-              hover:scale-105 active:scale-95"
-          >
-            <Avatar
-              name={`${user?.first_name ?? '?'} ${user?.last_name ?? ''}`}
-              url={user?.avatar_url}
-              size={36}
-            />
-          </button>
-
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className="absolute left-0 top-11 z-50
-                bg-white dark:bg-gray-800
-                shadow-2xl rounded-2xl py-2 min-w-[220px]
-                border border-black/5 dark:border-white/5
-                animate-scaleIn origin-top-left">
-                <div className="px-4 py-3 border-b border-black/5 dark:border-white/5">
-                  <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    @{user?.username}
-                  </p>
-                </div>
-                <SideMenuItem icon="⚙️" label="Настройки"
-                  onClick={() => { navigate('/settings'); setShowMenu(false) }} />
-                <SideMenuItem icon="🔖" label="Избранное"
-                  onClick={() => setShowMenu(false)} />
-                <div className="my-1 mx-2 border-t border-black/5 dark:border-white/5" />
-                <SideMenuItem icon="🚪" label="Выйти" onClick={handleLogout} danger />
-              </div>
-            </>
-          )}
-        </div>
+        {/* Hamburger / menu button */}
+        <button
+          onClick={() => setShowDrawer(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-full
+            hover:bg-black/8 dark:hover:bg-white/10 transition-colors active:scale-90"
+          title="Меню"
+        >
+          <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
 
         {/* Title */}
-        <span className="font-semibold text-sm flex-1 text-gray-900 dark:text-gray-100
-          tracking-tight">
+        <span className="font-semibold text-sm flex-1 text-gray-900 dark:text-gray-100 tracking-tight">
           ZLP Messenger
           {totalUnread > 0 && (
             <span className="ml-2 text-[11px] bg-primary-500 text-white
@@ -109,7 +69,7 @@ export function Sidebar() {
         <button
           onClick={() => setShowNewChat(true)}
           className="icon-btn"
-          title="New chat"
+          title="Новый чат"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -124,15 +84,13 @@ export function Sidebar() {
       {/* Chat list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-gray-400
-            animate-fadeIn">
+          <div className="flex flex-col items-center justify-center h-40 text-gray-400 animate-fadeIn">
             <span className="text-3xl mb-2">💬</span>
             <p className="text-sm">{search ? 'Чаты не найдены' : 'Нет чатов'}</p>
             {!search && (
               <button
                 onClick={() => setShowNewChat(true)}
-                className="mt-3 text-sm text-primary-500 hover:text-primary-600
-                  transition-colors font-medium"
+                className="mt-3 text-sm text-primary-500 hover:text-primary-600 transition-colors font-medium"
               >
                 Начать переписку
               </button>
@@ -151,24 +109,13 @@ export function Sidebar() {
       </div>
 
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} />}
-    </aside>
-  )
-}
 
-function SideMenuItem({ icon, label, onClick, danger }: {
-  icon: string; label: string; onClick: () => void; danger?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors
-        ${danger
-          ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
-          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
-        }`}
-    >
-      <span className="text-base">{icon}</span>
-      {label}
-    </button>
+      {showDrawer && (
+        <SideDrawer
+          onClose={() => setShowDrawer(false)}
+          onCreateGroup={() => setShowNewChat(true)}
+        />
+      )}
+    </aside>
   )
 }
