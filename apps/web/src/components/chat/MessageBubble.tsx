@@ -16,6 +16,18 @@ interface Props {
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉']
 
 export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
+  // Service messages (call summaries, etc.) — centered pill, no bubble
+  if (msg.type === 'service') {
+    return (
+      <div className="flex justify-center my-2">
+        <span className="text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/10
+          rounded-full px-3 py-1 select-none">
+          {msg.text}
+        </span>
+      </div>
+    )
+  }
+
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const removeMessage = useChatStore((s) => s.removeMessage)

@@ -47,6 +47,7 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
 
   const isVideo = active.type === 'video'
   const isConnecting = active.status === 'connecting' || active.status === 'ringing'
+  const isReconnecting = active.status === 'reconnecting'
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
@@ -83,7 +84,9 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
         <p className="text-2xl font-semibold drop-shadow">{active.targetName}</p>
         <p className="text-sm text-gray-300 drop-shadow">
           {isConnecting
-            ? (active.status === 'ringing' ? 'Ringing…' : 'Connecting…')
+            ? (active.status === 'ringing' ? 'Звонит…' : 'Подключение…')
+            : isReconnecting
+            ? 'Переподключение…'
             : formatTime(elapsed)}
         </p>
       </div>

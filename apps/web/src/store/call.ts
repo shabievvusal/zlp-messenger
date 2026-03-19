@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type CallType = 'voice' | 'video'
-export type CallStatus = 'connecting' | 'ringing' | 'active' | 'ended'
+export type CallStatus = 'connecting' | 'ringing' | 'reconnecting' | 'active' | 'ended'
 
 export interface IncomingCall {
   callId: string
@@ -17,6 +17,7 @@ export interface ActiveCall {
   targetName: string
   type: CallType
   status: CallStatus
+  isInitiator: boolean
   isMuted: boolean
   isVideoOff: boolean
   isSpeakerOn: boolean

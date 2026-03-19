@@ -65,9 +65,11 @@ export function MessageList({ chatId, onLoadMore }: Props) {
           const showDate = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at))
           const isOwn = msg.sender_id === currentUser?.id
 
-          // Group messages from same sender within 5 minutes
+          // Group messages from same sender within 5 minutes (service messages never group)
           const isGrouped = !showDate &&
+            msg.type !== 'service' &&
             !!prev &&
+            prev.type !== 'service' &&
             prev.sender_id === msg.sender_id &&
             differenceInMinutes(new Date(msg.created_at), new Date(prev.created_at)) < 5
 

@@ -179,32 +179,40 @@ func (s *Service) GetMessages(ctx context.Context, userID, chatID uuid.UUID, lim
 	return s.repo.GetMessages(ctx, chatID, limit, offset)
 }
 
-func (s *Service) EditMessage(ctx context.Context, userID, msgID uuid.UUID, text string) error {
+func (s *Service) EditMessage(ctx context.Context, userID, msgID uuid.UUID, text string) (*models.Message, error) {
 	msg, err := s.repo.GetMessageByID(ctx, msgID)
 	if err != nil {
-		return ErrMessageNotFound
+		return nil, ErrMessageNotFound
 	}
 	if msg.SenderID == nil || *msg.SenderID != userID {
-		return ErrPermissionDenied
+		return nil, ErrPermissionDenied
 	}
-	return s.repo.EditMessage(ctx, msgID, text)
+	if err := s.repo.EditMessage(ctx, msgID, text); err != nil {
+		return nil, err
+	}
+	msg.Text = &text
+	msg.IsEdited = true
+	return msg, nil
 }
 
-func (s *Service) DeleteMessage(ctx context.Context, userID, msgID uuid.UUID) error {
+func (s *Service) DeleteMessage(ctx context.Context, userID, msgID uuid.UUID) (*models.Message, error) {
 	msg, err := s.repo.GetMessageByID(ctx, msgID)
 	if err != nil {
-		return ErrMessageNotFound
+		return nil, ErrMessageNotFound
 	}
 
 	// Owner can delete; admin can delete in group
 	if msg.SenderID == nil || *msg.SenderID != userID {
 		member, err := s.repo.GetMember(ctx, msg.ChatID, userID)
 		if err != nil || (member.Role != models.MemberRoleAdmin && member.Role != models.MemberRoleOwner) {
-			return ErrPermissionDenied
+			return nil, ErrPermissionDenied
 		}
 	}
 
-	return s.repo.DeleteMessage(ctx, msgID)
+	if err := s.repo.DeleteMessage(ctx, msgID); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 func (s *Service) AddReaction(ctx context.Context, userID, msgID uuid.UUID, emoji string) error {
@@ -217,6 +225,24 @@ func (s *Service) RemoveReaction(ctx context.Context, userID, msgID uuid.UUID) e
 
 func (s *Service) MarkRead(ctx context.Context, userID, msgID uuid.UUID) error {
 	return s.repo.MarkRead(ctx, msgID, userID)
+}
+
+func (s *Service) GetPrivateChat(ctx context.Context, userA, userB uuid.UUID) (*models.Chat, error) {
+	return s.repo.GetPrivateChat(ctx, userA, userB)
+}
+
+func (s *Service) CreateServiceMessage(ctx context.Context, chatID uuid.UUID, text string) (*models.Message, error) {
+	t := text
+	msg := &models.Message{
+		ID:     uuid.New(),
+		ChatID: chatID,
+		Type:   models.MessageTypeService,
+		Text:   &t,
+	}
+	if err := s.repo.CreateMessage(ctx, msg); err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 func (s *Service) SearchMessages(ctx context.Context, userID, chatID uuid.UUID, query string) ([]models.Message, error) {

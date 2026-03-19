@@ -79,6 +79,7 @@ export function MessengerPage() {
     setActive({
       callId, targetId, targetName, type,
       status: 'ringing',
+      isInitiator: true,
       isMuted: false, isVideoOff: false, isSpeakerOn: true,
       localStream: stream, remoteStream: null,
     })
@@ -131,6 +132,7 @@ export function MessengerPage() {
     setActive({
       callId: snap.callId, targetId: snap.callerId, targetName: snap.callerName,
       type, status: 'connecting',
+      isInitiator: false,
       isMuted: false, isVideoOff: false, isSpeakerOn: true,
       localStream: stream, remoteStream: null,
     })

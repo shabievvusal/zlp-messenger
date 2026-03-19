@@ -12,10 +12,11 @@ type Handler struct {
 	service     *Service
 	chatService *chatpkg.Service
 	chatRepo    *chatpkg.Repository
+	notifier    chatpkg.Notifier
 }
 
-func NewHandler(service *Service, chatService *chatpkg.Service, chatRepo *chatpkg.Repository) *Handler {
-	return &Handler{service: service, chatService: chatService, chatRepo: chatRepo}
+func NewHandler(service *Service, chatService *chatpkg.Service, chatRepo *chatpkg.Repository, notifier chatpkg.Notifier) *Handler {
+	return &Handler{service: service, chatService: chatService, chatRepo: chatRepo, notifier: notifier}
 }
 
 // POST /api/media/upload
@@ -65,6 +66,9 @@ func (h *Handler) Upload(c *fiber.Ctx) error {
 					MimeType:  &result.MimeType,
 				}
 				_ = h.chatRepo.CreateAttachment(c.Context(), attachment)
+				if h.notifier != nil {
+					h.notifier.BroadcastChat(chatID, "new_message", msg, &userID)
+				}
 				return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 					"message":    msg,
 					"attachment": attachment,

@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -11,6 +12,14 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/zlp-messenger/backend/internal/chat"
 )
+
+type callMeta struct {
+	CallerID    string `json:"caller_id"`
+	CalleeID    string `json:"callee_id"`
+	CallType    string `json:"call_type"`
+	InitiatedAt int64  `json:"initiated_at"`
+	AcceptedAt  int64  `json:"accepted_at"` // 0 if not yet accepted
+}
 
 type Hub struct {
 	mu          sync.RWMutex
@@ -97,6 +106,21 @@ func (h *Hub) SendToUser(userID uuid.UUID, event OutgoingEvent) {
 	}
 }
 
+// BroadcastChat implements chat.Notifier — broadcasts an event to all chat members.
+func (h *Hub) BroadcastChat(chatID uuid.UUID, eventType string, payload any, excludeUserID *uuid.UUID) {
+	h.BroadcastToChat(chatID, OutgoingEvent{Type: eventType, Payload: payload}, excludeUserID)
+}
+
+// SubscribeToChat implements chat.Notifier — subscribes a user to a chat if they are online.
+func (h *Hub) SubscribeToChat(userID, chatID uuid.UUID) {
+	h.mu.RLock()
+	_, online := h.clients[userID]
+	h.mu.RUnlock()
+	if online {
+		h.SubscribeClientToChat(userID, chatID)
+	}
+}
+
 func (h *Hub) IsOnline(userID uuid.UUID) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -155,6 +179,17 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		h.mu.RUnlock()
 		log.Printf("ws: call_initiate caller=%s target=%s online=%v callID=%s", c.UserID, targetID, targetOnline, callID)
 
+		// Store call metadata in Redis
+		meta := callMeta{
+			CallerID:    c.UserID.String(),
+			CalleeID:    targetID.String(),
+			CallType:    callType,
+			InitiatedAt: time.Now().Unix(),
+		}
+		if data, err := json.Marshal(meta); err == nil {
+			h.redis.Set(context.Background(), "call:"+callID, data, 2*time.Hour)
+		}
+
 		h.SendToUser(targetID, OutgoingEvent{
 			Type: EventCallIncoming,
 			Payload: map[string]any{
@@ -170,10 +205,23 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		if callerID == uuid.Nil {
 			return
 		}
+		callID, _ := event.Payload["call_id"].(string)
+		// Record accepted_at in Redis
+		if callID != "" {
+			if raw, err := h.redis.Get(context.Background(), "call:"+callID).Bytes(); err == nil {
+				var meta callMeta
+				if json.Unmarshal(raw, &meta) == nil {
+					meta.AcceptedAt = time.Now().Unix()
+					if data, err := json.Marshal(meta); err == nil {
+						h.redis.Set(context.Background(), "call:"+callID, data, 2*time.Hour)
+					}
+				}
+			}
+		}
 		h.SendToUser(callerID, OutgoingEvent{
 			Type: EventCallAccepted,
 			Payload: map[string]any{
-				"call_id":   event.Payload["call_id"],
+				"call_id":   callID,
 				"callee_id": c.UserID,
 			},
 		})
@@ -183,26 +231,30 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		if callerID == uuid.Nil {
 			return
 		}
+		callID, _ := event.Payload["call_id"].(string)
 		h.SendToUser(callerID, OutgoingEvent{
 			Type: EventCallDeclined,
 			Payload: map[string]any{
-				"call_id":   event.Payload["call_id"],
+				"call_id":   callID,
 				"callee_id": c.UserID,
 			},
 		})
+		h.finishCall(context.Background(), callID, "declined")
 
 	case EventCallEnd:
 		targetID := parseUUID(event.Payload, "target_id")
 		if targetID == uuid.Nil {
 			return
 		}
+		callID, _ := event.Payload["call_id"].(string)
 		h.SendToUser(targetID, OutgoingEvent{
 			Type: EventCallEnded,
 			Payload: map[string]any{
-				"call_id": event.Payload["call_id"],
+				"call_id": callID,
 				"by":      c.UserID,
 			},
 		})
+		h.finishCall(context.Background(), callID, "ended")
 
 	// ── WebRTC SIGNALING ───────────────────────────────────────
 
@@ -248,4 +300,69 @@ func (h *Hub) setOnline(userID uuid.UUID, online bool) {
 
 func (h *Hub) broadcastPresence(userID uuid.UUID, eventType string) {
 	log.Printf("ws: presence %s for user %s", eventType, userID)
+}
+
+// finishCall reads call metadata from Redis, creates a service message in the private chat,
+// and broadcasts it to both participants.
+func (h *Hub) finishCall(ctx context.Context, callID string, reason string) {
+	if callID == "" {
+		return
+	}
+	raw, err := h.redis.GetDel(ctx, "call:"+callID).Bytes()
+	if err != nil {
+		return
+	}
+	var meta callMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		return
+	}
+
+	callerID, err := uuid.Parse(meta.CallerID)
+	if err != nil {
+		return
+	}
+	calleeID, err := uuid.Parse(meta.CalleeID)
+	if err != nil {
+		return
+	}
+
+	chat, err := h.chatService.GetPrivateChat(ctx, callerID, calleeID)
+	if err != nil {
+		// Chat may not exist yet (call was never established)
+		return
+	}
+
+	icon := "📞"
+	if meta.CallType == "video" {
+		icon = "📹"
+	}
+
+	var text string
+	switch reason {
+	case "declined":
+		text = icon + " Отклонённый звонок"
+	default:
+		if meta.AcceptedAt > 0 {
+			dur := time.Now().Unix() - meta.AcceptedAt
+			mins := dur / 60
+			secs := dur % 60
+			if meta.CallType == "video" {
+				text = fmt.Sprintf("%s Видеозвонок · %d:%02d", icon, mins, secs)
+			} else {
+				text = fmt.Sprintf("%s Голосовой звонок · %d:%02d", icon, mins, secs)
+			}
+		} else {
+			text = icon + " Пропущенный звонок"
+		}
+	}
+
+	msg, err := h.chatService.CreateServiceMessage(ctx, chat.ID, text)
+	if err != nil {
+		log.Printf("ws: finishCall create service message error: %v", err)
+		return
+	}
+
+	evt := OutgoingEvent{Type: EventNewMessage, Payload: msg}
+	h.SendToUser(callerID, evt)
+	h.SendToUser(calleeID, evt)
 }

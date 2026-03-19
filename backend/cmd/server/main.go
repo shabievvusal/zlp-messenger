@@ -59,14 +59,15 @@ func main() {
 
 	chatRepo := chat.NewRepository(postgres)
 	chatService := chat.NewService(chatRepo)
-	chatHandler := chat.NewHandler(chatService)
 
 	mediaService := media.NewService(minioClient)
-	mediaHandler := media.NewHandler(mediaService, chatService, chatRepo)
 
 	hub := ws.NewHub(chatService, redisClient)
 	go hub.Run()
 	wsHandler := ws.NewHandler(hub)
+
+	chatHandler := chat.NewHandler(chatService, hub)
+	mediaHandler := media.NewHandler(mediaService, chatService, chatRepo, hub)
 
 	// ── Fiber app ─────────────────────────────────────────────
 	app := fiber.New(fiber.Config{

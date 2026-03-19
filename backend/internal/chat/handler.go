@@ -12,10 +12,11 @@ import (
 type Handler struct {
 	service  *Service
 	validate *validator.Validate
+	notifier Notifier
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service, validate: validator.New()}
+func NewHandler(service *Service, notifier Notifier) *Handler {
+	return &Handler{service: service, validate: validator.New(), notifier: notifier}
 }
 
 // GET /api/chats
@@ -38,11 +39,18 @@ func (h *Handler) CreatePrivateChat(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
 	}
 
-	chat, err := h.service.GetOrCreatePrivateChat(c.Context(), userID, body.TargetID)
+	ch, err := h.service.GetOrCreatePrivateChat(c.Context(), userID, body.TargetID)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "failed to create chat")
 	}
-	return c.Status(fiber.StatusCreated).JSON(chat)
+
+	// Subscribe both users to the new chat for real-time events
+	if h.notifier != nil {
+		h.notifier.SubscribeToChat(userID, ch.ID)
+		h.notifier.SubscribeToChat(body.TargetID, ch.ID)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(ch)
 }
 
 // POST /api/chats/group
@@ -129,6 +137,11 @@ func (h *Handler) SendMessage(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusInternalServerError, "failed to send message")
 		}
 	}
+
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(chatID, "new_message", msg, &userID)
+	}
+
 	return c.Status(fiber.StatusCreated).JSON(msg)
 }
 
@@ -147,7 +160,8 @@ func (h *Handler) EditMessage(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
 	}
 
-	if err := h.service.EditMessage(c.Context(), userID, msgID, body.Text); err != nil {
+	msg, err := h.service.EditMessage(c.Context(), userID, msgID, body.Text)
+	if err != nil {
 		switch err {
 		case ErrPermissionDenied:
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
@@ -157,6 +171,11 @@ func (h *Handler) EditMessage(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusInternalServerError, "failed to edit message")
 		}
 	}
+
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(msg.ChatID, "message_edited", msg, nil)
+	}
+
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -168,7 +187,8 @@ func (h *Handler) DeleteMessage(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid message id")
 	}
 
-	if err := h.service.DeleteMessage(c.Context(), userID, msgID); err != nil {
+	msg, err := h.service.DeleteMessage(c.Context(), userID, msgID)
+	if err != nil {
 		switch err {
 		case ErrPermissionDenied:
 			return fiber.NewError(fiber.StatusForbidden, err.Error())
@@ -178,6 +198,12 @@ func (h *Handler) DeleteMessage(c *fiber.Ctx) error {
 			return fiber.NewError(fiber.StatusInternalServerError, "failed to delete message")
 		}
 	}
+
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(msg.ChatID, "message_deleted",
+			map[string]any{"chat_id": msg.ChatID, "message_id": msg.ID}, nil)
+	}
+
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
