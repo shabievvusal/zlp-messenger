@@ -9,7 +9,7 @@ const RECONNECT_DELAY = 3000
 function getWsUrl(token: string) {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const host = window.location.host
-  const base = import.meta.env.VITE_WS_URL ?? `${proto}://${host}/ws`
+  const base = import.meta.env.VITE_WS_URL || `${proto}://${host}/ws`
   return `${base}?token=${token}`
 }
 
