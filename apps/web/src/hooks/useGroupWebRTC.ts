@@ -132,6 +132,15 @@ export function useGroupWebRTC(send: SendFn) {
     const pc = createPC(from)
     localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))
 
+    // Add screen track BEFORE creating the answer so it's included in the initial SDP —
+    // no second renegotiation needed; the new participant gets video immediately.
+    if (screenStreamRef.current) {
+      const screenTrack = screenStreamRef.current.getVideoTracks()[0]
+      if (screenTrack && screenTrack.readyState === 'live') {
+        pc.addTrack(screenTrack, localStream)
+      }
+    }
+
     await pc.setRemoteDescription(new RTCSessionDescription(offer))
 
     // Apply any buffered ICE candidates
@@ -148,15 +157,6 @@ export function useGroupWebRTC(send: SendFn) {
       call_id: callIdRef.current,
       data: answer,
     })
-
-    // If we're currently screen sharing, add the screen track to the new participant's PC.
-    // This triggers onnegotiationneeded → sends an updated offer with the video track.
-    if (screenStreamRef.current) {
-      const screenTrack = screenStreamRef.current.getVideoTracks()[0]
-      if (screenTrack && screenTrack.readyState === 'live') {
-        pc.addTrack(screenTrack, localStream)
-      }
-    }
   }, [send, createPC, addRemoteParticipant])
 
   // ── Handle answer from a participant ───────────────────────
